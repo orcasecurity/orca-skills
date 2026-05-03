@@ -1,0 +1,323 @@
+{
+  "investigation_scope": {
+    "actor": "arn:aws:iam::123456789012:role/web-app-s3-access-role",
+    "time_range": "last_24_hours",
+    "start_time": "2026-04-22T14:00:00Z",
+    "end_time": "2026-04-23T14:00:00Z"
+  },
+  "summary": {
+    "total_events": 1456,
+    "unique_actions": 12,
+    "services_accessed": 4,
+    "resources_touched": 23,
+    "source_ips": 2,
+    "user_agents": 1,
+    "sessions_detected": 3
+  },
+  "events": [
+    {
+      "event_id": "evt-001",
+      "timestamp": "2026-04-22T14:15:00Z",
+      "actor": "arn:aws:iam::123456789012:role/web-app-s3-access-role",
+      "action": "sts:AssumeRole",
+      "service": "sts",
+      "target": "arn:aws:iam::123456789012:role/web-app-s3-access-role",
+      "source_ip": "10.0.15.42",
+      "user_agent": "aws-cli/2.9.19 Python/3.11.2 Linux/5.10.0",
+      "status": "success",
+      "request_parameters": {
+        "roleArn": "arn:aws:iam::123456789012:role/web-app-s3-access-role",
+        "roleSessionName": "web-app-instance-3"
+      }
+    },
+    {
+      "event_id": "evt-002",
+      "timestamp": "2026-04-22T14:16:30Z",
+      "actor": "arn:aws:iam::123456789012:role/web-app-s3-access-role",
+      "action": "s3:ListBucket",
+      "service": "s3",
+      "target": "arn:aws:s3:::customer-data-prod",
+      "source_ip": "10.0.15.42",
+      "user_agent": "aws-cli/2.9.19 Python/3.11.2 Linux/5.10.0",
+      "status": "success",
+      "request_parameters": {
+        "bucketName": "customer-data-prod"
+      }
+    },
+    {
+      "event_id": "evt-003",
+      "timestamp": "2026-04-22T14:20:15Z",
+      "actor": "arn:aws:iam::123456789012:role/web-app-s3-access-role",
+      "action": "s3:GetObject",
+      "service": "s3",
+      "target": "arn:aws:s3:::customer-data-prod/users/user-12345.json",
+      "source_ip": "10.0.15.42",
+      "user_agent": "aws-cli/2.9.19 Python/3.11.2 Linux/5.10.0",
+      "status": "success",
+      "request_parameters": {
+        "bucketName": "customer-data-prod",
+        "key": "users/user-12345.json"
+      },
+      "response_elements": {
+        "bytesTransferred": 2048
+      }
+    },
+    {
+      "event_id": "evt-450",
+      "timestamp": "2026-04-22T14:25:48Z",
+      "actor": "arn:aws:iam::123456789012:role/web-app-s3-access-role",
+      "action": "s3:GetObject",
+      "service": "s3",
+      "target": "arn:aws:s3:::customer-data-prod/users/user-98765.json",
+      "source_ip": "10.0.15.42",
+      "user_agent": "aws-cli/2.9.19 Python/3.11.2 Linux/5.10.0",
+      "status": "success",
+      "request_parameters": {
+        "bucketName": "customer-data-prod",
+        "key": "users/user-98765.json"
+      },
+      "response_elements": {
+        "bytesTransferred": 3072
+      }
+    },
+    {
+      "event_id": "evt-451",
+      "timestamp": "2026-04-22T16:00:00Z",
+      "actor": "arn:aws:iam::123456789012:role/web-app-s3-access-role",
+      "action": "sts:AssumeRole",
+      "service": "sts",
+      "target": "arn:aws:iam::123456789012:role/web-app-s3-access-role",
+      "source_ip": "203.0.113.99",
+      "user_agent": "aws-cli/2.9.19 Python/3.11.2 Linux/5.10.0",
+      "status": "success",
+      "request_parameters": {
+        "roleArn": "arn:aws:iam::123456789012:role/web-app-s3-access-role",
+        "roleSessionName": "suspicious-session"
+      }
+    },
+    {
+      "event_id": "evt-452",
+      "timestamp": "2026-04-22T16:02:00Z",
+      "actor": "arn:aws:iam::123456789012:role/web-app-s3-access-role",
+      "action": "iam:ListUsers",
+      "service": "iam",
+      "target": "arn:aws:iam::123456789012:root",
+      "source_ip": "203.0.113.99",
+      "user_agent": "aws-cli/2.9.19 Python/3.11.2 Linux/5.10.0",
+      "status": "success",
+      "request_parameters": {}
+    },
+    {
+      "event_id": "evt-453",
+      "timestamp": "2026-04-22T16:05:00Z",
+      "actor": "arn:aws:iam::123456789012:role/web-app-s3-access-role",
+      "action": "ec2:DescribeInstances",
+      "service": "ec2",
+      "target": "*",
+      "source_ip": "203.0.113.99",
+      "user_agent": "aws-cli/2.9.19 Python/3.11.2 Linux/5.10.0",
+      "status": "success",
+      "request_parameters": {}
+    }
+  ],
+  "grouped_by_action": [
+    {
+      "action": "s3:GetObject",
+      "count": 450,
+      "percentage": 30.9,
+      "service": "s3",
+      "resources": 23,
+      "first_occurrence": "2026-04-22T14:20:15Z",
+      "last_occurrence": "2026-04-22T14:25:48Z"
+    },
+    {
+      "action": "sts:AssumeRole",
+      "count": 234,
+      "percentage": 16.1,
+      "service": "sts",
+      "resources": 1,
+      "first_occurrence": "2026-04-22T14:15:00Z",
+      "last_occurrence": "2026-04-22T16:00:00Z"
+    },
+    {
+      "action": "s3:ListBucket",
+      "count": 567,
+      "percentage": 38.9,
+      "service": "s3",
+      "resources": 3,
+      "first_occurrence": "2026-04-22T14:16:30Z",
+      "last_occurrence": "2026-04-22T16:30:00Z"
+    },
+    {
+      "action": "ec2:DescribeInstances",
+      "count": 123,
+      "percentage": 8.4,
+      "service": "ec2",
+      "resources": 1,
+      "first_occurrence": "2026-04-22T16:05:00Z",
+      "last_occurrence": "2026-04-22T18:20:00Z"
+    },
+    {
+      "action": "iam:ListUsers",
+      "count": 45,
+      "percentage": 3.1,
+      "service": "iam",
+      "resources": 1,
+      "first_occurrence": "2026-04-22T16:02:00Z",
+      "last_occurrence": "2026-04-22T17:45:00Z"
+    },
+    {
+      "action": "rds:DescribeDBInstances",
+      "count": 37,
+      "percentage": 2.5,
+      "service": "rds",
+      "resources": 1,
+      "first_occurrence": "2026-04-22T16:10:00Z",
+      "last_occurrence": "2026-04-22T17:30:00Z"
+    }
+  ],
+  "sessions": [
+    {
+      "session_id": "session-001",
+      "start_time": "2026-04-22T14:15:00Z",
+      "end_time": "2026-04-22T14:30:00Z",
+      "duration_minutes": 15,
+      "source_ip": "10.0.15.42",
+      "user_agent": "aws-cli/2.9.19 Python/3.11.2 Linux/5.10.0",
+      "total_events": 567,
+      "actions": [
+        {"action": "sts:AssumeRole", "count": 1},
+        {"action": "s3:ListBucket", "count": 116},
+        {"action": "s3:GetObject", "count": 450}
+      ],
+      "assessment": "normal",
+      "reason": "Known internal IP, normal business hours, consistent with baseline"
+    },
+    {
+      "session_id": "session-002",
+      "start_time": "2026-04-22T16:00:00Z",
+      "end_time": "2026-04-22T18:30:00Z",
+      "duration_minutes": 150,
+      "source_ip": "203.0.113.99",
+      "user_agent": "aws-cli/2.9.19 Python/3.11.2 Linux/5.10.0",
+      "total_events": 678,
+      "actions": [
+        {"action": "sts:AssumeRole", "count": 1},
+        {"action": "iam:ListUsers", "count": 45},
+        {"action": "ec2:DescribeInstances", "count": 123},
+        {"action": "rds:DescribeDBInstances", "count": 37},
+        {"action": "s3:ListBucket", "count": 451},
+        {"action": "s3:GetObject", "count": 21}
+      ],
+      "assessment": "suspicious",
+      "reason": "New external IP, reconnaissance pattern (listing users, instances, databases)"
+    },
+    {
+      "session_id": "session-003",
+      "start_time": "2026-04-22T19:00:00Z",
+      "end_time": "2026-04-22T19:15:00Z",
+      "duration_minutes": 15,
+      "source_ip": "10.0.15.42",
+      "user_agent": "aws-cli/2.9.19 Python/3.11.2 Linux/5.10.0",
+      "total_events": 211,
+      "actions": [
+        {"action": "sts:AssumeRole", "count": 1},
+        {"action": "s3:GetObject", "count": 210}
+      ],
+      "assessment": "normal",
+      "reason": "Known IP resumed normal activity after suspicious session"
+    }
+  ],
+  "mitre_attack_mapping": [
+    {
+      "tactic": "Initial Access",
+      "technique": "T1078 - Valid Accounts",
+      "actions": ["sts:AssumeRole"],
+      "confidence": "high",
+      "context": "Role assumed from EC2 instance profile"
+    },
+    {
+      "tactic": "Discovery",
+      "technique": "T1580 - Cloud Infrastructure Discovery",
+      "actions": ["ec2:DescribeInstances", "rds:DescribeDBInstances"],
+      "confidence": "high",
+      "context": "Enumeration of compute and database resources"
+    },
+    {
+      "tactic": "Discovery",
+      "technique": "T1087.004 - Account Discovery: Cloud Account",
+      "actions": ["iam:ListUsers"],
+      "confidence": "high",
+      "context": "Enumeration of IAM users"
+    },
+    {
+      "tactic": "Collection",
+      "technique": "T1530 - Data from Cloud Storage Object",
+      "actions": ["s3:GetObject"],
+      "confidence": "high",
+      "context": "450 S3 GetObject requests in 5 minutes - potential exfiltration"
+    }
+  ],
+  "blast_radius": {
+    "scope": "MODERATE",
+    "services_accessed": ["sts", "s3", "iam", "ec2", "rds"],
+    "resources_touched": 23,
+    "accounts": ["123456789012"],
+    "data_stores_accessed": [
+      {
+        "resource": "arn:aws:s3:::customer-data-prod",
+        "type": "s3_bucket",
+        "contains_sensitive_data": true,
+        "objects_accessed": 450
+      }
+    ],
+    "persistence_indicators": [],
+    "defense_evasion_indicators": [],
+    "lateral_movement_indicators": []
+  },
+  "verdict": {
+    "assessment": "SUSPICIOUS",
+    "confidence": 78,
+    "reasons": [
+      "S3 data access spike: 450 requests in 5 minutes (3650% above baseline)",
+      "New source IP (203.0.113.99) performing reconnaissance",
+      "IAM and EC2 discovery actions not typical for this role",
+      "MITRE ATT&CK coverage: Initial Access + Discovery + Collection"
+    ],
+    "recommended_action": "Investigate session from IP 203.0.113.99. Review S3 access logs. Consider revoking role credentials and rotating."
+  },
+  "iocs": {
+    "ips": [
+      {
+        "ip": "203.0.113.99",
+        "classification": "suspicious",
+        "first_seen": "2026-04-22T16:00:00Z",
+        "event_count": 678,
+        "reason": "New IP with reconnaissance behavior"
+      },
+      {
+        "ip": "10.0.15.42",
+        "classification": "known_good",
+        "first_seen": "2025-11-15T10:00:00Z",
+        "event_count": 778,
+        "reason": "Internal IP, consistent baseline activity"
+      }
+    ],
+    "user_agents": [
+      {
+        "agent": "aws-cli/2.9.19 Python/3.11.2 Linux/5.10.0",
+        "classification": "legitimate_tool",
+        "event_count": 1456
+      }
+    ],
+    "resources_created": [],
+    "access_keys_used": [
+      {
+        "access_key_id": "ASIATEMP123EXAMPLE",
+        "session_name": "suspicious-session",
+        "created_at": "2026-04-22T16:00:00Z",
+        "source_ip": "203.0.113.99"
+      }
+    ]
+  }
+}

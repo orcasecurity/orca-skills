@@ -1,0 +1,32 @@
+{
+  "name": "orca-skills",
+  "displayName": "Orca Skills",
+  "description": "Skills and plugins to accelerate security workflows with the Orca Cloud Platform",
+  "version": "2.0.0",
+  "author": {
+    "name": "Orca Security",
+    "email": "support@orca.security"
+  },
+  "homepage": "https://github.com/orcasecurity/orca-skills",
+  "repository": "https://github.com/orcasecurity/orca-skills",
+  "license": "MIT",
+  "keywords": [
+    "security",
+    "orca",
+    "triage",
+    "alerts",
+    "soc",
+    "incident-response",
+    "cloud-security",
+    "compliance",
+    "identity",
+    "exposure",
+    "dspm",
+    "investigation",
+    "asset-profile"
+  ],
+  "skills": "./skills/",
+  "mcp_required": [
+    "orca-security"
+  ]
+}

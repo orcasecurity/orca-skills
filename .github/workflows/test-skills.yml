@@ -1,0 +1,47 @@
+name: Test Orca Skills
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:  # Allows manual trigger from GitHub UI
+
+jobs:
+  eval-skills:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Promptfoo
+        run: npm install -g promptfoo
+
+      - name: Run skill evaluations
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          promptfoo eval --no-progress-bar
+
+      - name: Upload eval results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-results
+          path: eval-results.json
+          retention-days: 30
+
+      - name: Check for failures
+        run: |
+          if grep -q '"pass": false' eval-results.json; then
+            echo "❌ Some tests failed. Review the eval-results artifact."
+            exit 1
+          else
+            echo "✅ All tests passed!"
+          fi

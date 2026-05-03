@@ -1,0 +1,192 @@
+{
+  "time_range": {
+    "start": "2026-04-22T00:00:00Z",
+    "end": "2026-04-23T00:00:00Z",
+    "hours": 24
+  },
+  "alert_summary": {
+    "total_alerts": 47,
+    "new_alerts": 12,
+    "closed_alerts": 8,
+    "net_change": 4,
+    "by_severity": {
+      "critical": 3,
+      "high": 15,
+      "medium": 22,
+      "low": 7
+    },
+    "by_category": {
+      "malicious_activity": 5,
+      "data_at_risk": 8,
+      "iam": 12,
+      "network": 14,
+      "compliance": 8
+    },
+    "trending_up": [
+      {
+        "category": "iam",
+        "count": 12,
+        "change_percentage": 50,
+        "reason": "New overprivileged roles detected after deployment"
+      }
+    ],
+    "trending_down": [
+      {
+        "category": "compliance",
+        "count": 8,
+        "change_percentage": -20,
+        "reason": "Remediation efforts on PCI DSS controls"
+      }
+    ]
+  },
+  "compliance_status": {
+    "frameworks": [
+      {
+        "name": "PCI DSS",
+        "score": 78,
+        "change": 5,
+        "passing_controls": 42,
+        "failing_controls": 12,
+        "not_applicable": 4
+      },
+      {
+        "name": "SOC 2",
+        "score": 85,
+        "change": -2,
+        "passing_controls": 67,
+        "failing_controls": 8,
+        "not_applicable": 10
+      },
+      {
+        "name": "HIPAA",
+        "score": 72,
+        "change": 0,
+        "passing_controls": 38,
+        "failing_controls": 15,
+        "not_applicable": 12
+      }
+    ],
+    "recent_failures": [
+      {
+        "framework": "PCI DSS",
+        "control": "3.4 - Encryption of cardholder data",
+        "failed_at": "2026-04-22T14:30:00Z",
+        "asset": "customer-db-prod"
+      },
+      {
+        "framework": "SOC 2",
+        "control": "CC6.7 - Logical access security",
+        "failed_at": "2026-04-22T09:15:00Z",
+        "asset": "admin-role-superuser"
+      }
+    ]
+  },
+  "exposure_metrics": {
+    "internet_facing_assets": 156,
+    "change_24h": 2,
+    "by_type": {
+      "load_balancers": 12,
+      "ec2_instances": 8,
+      "s3_buckets": 94,
+      "rds_instances": 3,
+      "api_gateways": 39
+    },
+    "high_risk_exposure": [
+      {
+        "asset_name": "customer-db-staging",
+        "asset_type": "rds_instance",
+        "exposure": "publicly_accessible",
+        "risk_score": 95,
+        "opened_at": "2026-04-22T11:20:00Z"
+      }
+    ],
+    "attack_paths": {
+      "total": 23,
+      "new_24h": 4,
+      "critical_paths": 2,
+      "paths_to_crown_jewels": 5
+    }
+  },
+  "data_security": {
+    "sensitive_data_findings": {
+      "total": 342,
+      "new_24h": 15,
+      "by_type": {
+        "secrets": 45,
+        "pii": 187,
+        "credentials": 28,
+        "api_keys": 67,
+        "payment_data": 15
+      }
+    },
+    "public_data_exposure": {
+      "s3_buckets_with_pii": 8,
+      "databases_with_sensitive_data": 23,
+      "snapshots_with_secrets": 12
+    }
+  },
+  "identity_posture": {
+    "total_identities": 1247,
+    "overprivileged": 45,
+    "unused_90_days": 89,
+    "new_risky_permissions": [
+      {
+        "identity": "arn:aws:iam::123456789012:role/new-admin-role",
+        "permission": "iam:*",
+        "granted_at": "2026-04-22T16:45:00Z",
+        "risk": "administrative_access"
+      }
+    ],
+    "credential_issues": {
+      "access_keys_over_90_days": 34,
+      "unused_access_keys": 56,
+      "keys_with_full_admin": 3
+    }
+  },
+  "activity_highlights": {
+    "cdr_events": {
+      "total_events": 4567890,
+      "by_service": {
+        "s3": 2345678,
+        "ec2": 987654,
+        "iam": 456789,
+        "rds": 234567,
+        "lambda": 543202
+      },
+      "unusual_activity": [
+        {
+          "event": "S3 GetObject burst",
+          "count": 450,
+          "baseline": 12,
+          "deviation": "3650%",
+          "actor": "web-app-s3-access-role",
+          "alert_id": "orca-3636513"
+        }
+      ]
+    }
+  },
+  "top_priorities": [
+    {
+      "priority": 1,
+      "alert_id": "orca-3636513",
+      "title": "Anomalous S3 data access - possible exfiltration",
+      "severity": "critical",
+      "risk_score": 95
+    },
+    {
+      "priority": 2,
+      "alert_id": "orca-3380727",
+      "title": "Production database publicly accessible",
+      "severity": "critical",
+      "risk_score": 92
+    },
+    {
+      "priority": 3,
+      "alert_id": "orca-3299414",
+      "title": "S3 bucket with public write access",
+      "severity": "critical",
+      "risk_score": 88
+    }
+  ],
+  "generated_at": "2026-04-23T08:00:00Z"
+}

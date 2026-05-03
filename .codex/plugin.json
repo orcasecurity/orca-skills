@@ -1,0 +1,26 @@
+{
+  "name": "orca-triage",
+  "displayName": "Orca Security Alert Triage",
+  "description": "Triage Orca Security alerts with analyst-friendly formatting, timeline analysis, and progressive disclosure",
+  "version": "1.0.0",
+  "author": {
+    "name": "Orca Security",
+    "email": "support@orca.security"
+  },
+  "homepage": "https://github.com/orca-security/orca-triage-skill",
+  "repository": "https://github.com/orca-security/orca-triage-skill",
+  "license": "MIT",
+  "keywords": [
+    "security",
+    "orca",
+    "triage",
+    "alerts",
+    "soc",
+    "incident-response",
+    "threat-intelligence"
+  ],
+  "skills": "./skills/",
+  "mcp_required": [
+    "orca-security"
+  ]
+}

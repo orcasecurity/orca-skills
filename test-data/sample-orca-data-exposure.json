@@ -1,0 +1,274 @@
+{
+  "summary": {
+    "total_findings": 342,
+    "high_risk": 67,
+    "medium_risk": 153,
+    "low_risk": 122,
+    "publicly_exposed": 23,
+    "last_scan": "2026-04-23T05:30:00Z"
+  },
+  "by_data_type": {
+    "pii": {
+      "count": 187,
+      "high_risk": 34,
+      "locations": [
+        {
+          "asset_id": "550e8400-e29b-41d4-a716-446655440013",
+          "asset_name": "user-profiles-db",
+          "asset_type": "rds_instance",
+          "region": "us-east-1",
+          "data_classification": "PII",
+          "fields_detected": ["email", "phone_number", "ssn", "date_of_birth", "address"],
+          "record_count": 1250000,
+          "exposure": "internal_only",
+          "encryption_status": "encrypted",
+          "risk_score": 45
+        },
+        {
+          "asset_id": "550e8400-e29b-41d4-a716-446655440014",
+          "asset_name": "customer-data-backup",
+          "asset_type": "s3_bucket",
+          "region": "us-west-2",
+          "data_classification": "PII",
+          "fields_detected": ["email", "full_name", "shipping_address"],
+          "record_count": 3500000,
+          "exposure": "public_read_access",
+          "encryption_status": "unencrypted",
+          "risk_score": 92
+        },
+        {
+          "asset_id": "550e8400-e29b-41d4-a716-446655440015",
+          "asset_name": "analytics-data-lake",
+          "asset_type": "s3_bucket",
+          "region": "eu-west-1",
+          "data_classification": "PII",
+          "fields_detected": ["user_id", "email", "ip_address", "location"],
+          "record_count": 8900000,
+          "exposure": "internal_only",
+          "encryption_status": "encrypted",
+          "risk_score": 38
+        }
+      ]
+    },
+    "secrets": {
+      "count": 45,
+      "high_risk": 12,
+      "types": [
+        {
+          "secret_type": "AWS Access Key",
+          "count": 8,
+          "locations": [
+            {
+              "asset_id": "550e8400-e29b-41d4-a716-446655440016",
+              "asset_name": "app-config-bucket",
+              "asset_type": "s3_bucket",
+              "file_path": "prod/config/database.yml",
+              "exposure": "internal_only",
+              "risk_score": 78
+            },
+            {
+              "asset_id": "550e8400-e29b-41d4-a716-446655440017",
+              "asset_name": "ci-cd-logs",
+              "asset_type": "s3_bucket",
+              "file_path": "builds/2026-04-15/deploy.log",
+              "exposure": "public_read_access",
+              "risk_score": 95
+            }
+          ]
+        },
+        {
+          "secret_type": "Database Password",
+          "count": 12,
+          "locations": [
+            {
+              "asset_id": "550e8400-e29b-41d4-a716-446655440018",
+              "asset_name": "web-app-instance-5",
+              "asset_type": "vm",
+              "file_path": "/var/www/html/.env",
+              "exposure": "internal_only",
+              "risk_score": 72
+            }
+          ]
+        },
+        {
+          "secret_type": "Private SSH Key",
+          "count": 7,
+          "locations": [
+            {
+              "asset_id": "550e8400-e29b-41d4-a716-446655440019",
+              "asset_name": "developer-workstation-snapshot",
+              "asset_type": "ebs_snapshot",
+              "file_path": "/home/devuser/.ssh/id_rsa",
+              "exposure": "shared_with_external_account",
+              "risk_score": 88
+            }
+          ]
+        },
+        {
+          "secret_type": "API Key",
+          "count": 18,
+          "locations": [
+            {
+              "asset_id": "550e8400-e29b-41d4-a716-446655440020",
+              "asset_name": "mobile-app-source",
+              "asset_type": "s3_bucket",
+              "file_path": "src/config/api-keys.json",
+              "exposure": "internal_only",
+              "risk_score": 65
+            }
+          ]
+        }
+      ]
+    },
+    "credentials": {
+      "count": 28,
+      "high_risk": 8,
+      "types": [
+        {
+          "credential_type": "Hardcoded Password",
+          "count": 15,
+          "exposure": "source_code"
+        },
+        {
+          "credential_type": "API Token",
+          "count": 13,
+          "exposure": "configuration_files"
+        }
+      ]
+    },
+    "api_keys": {
+      "count": 67,
+      "high_risk": 9,
+      "providers": [
+        {
+          "provider": "Stripe",
+          "count": 12,
+          "highest_risk_score": 85
+        },
+        {
+          "provider": "SendGrid",
+          "count": 8,
+          "highest_risk_score": 60
+        },
+        {
+          "provider": "Google Maps",
+          "count": 23,
+          "highest_risk_score": 45
+        },
+        {
+          "provider": "Twilio",
+          "count": 15,
+          "highest_risk_score": 72
+        }
+      ]
+    },
+    "payment_data": {
+      "count": 15,
+      "high_risk": 4,
+      "locations": [
+        {
+          "asset_id": "550e8400-e29b-41d4-a716-446655440021",
+          "asset_name": "payment-processing-db",
+          "asset_type": "rds_instance",
+          "data_classification": "PCI",
+          "fields_detected": ["credit_card_number", "cvv", "expiration_date"],
+          "record_count": 45000,
+          "exposure": "internal_only",
+          "encryption_status": "unencrypted",
+          "tokenization": false,
+          "risk_score": 95
+        },
+        {
+          "asset_id": "550e8400-e29b-41d4-a716-446655440022",
+          "asset_name": "transaction-logs",
+          "asset_type": "s3_bucket",
+          "data_classification": "PCI",
+          "fields_detected": ["last_four_digits", "transaction_id"],
+          "record_count": 2300000,
+          "exposure": "internal_only",
+          "encryption_status": "encrypted",
+          "tokenization": true,
+          "risk_score": 42
+        }
+      ]
+    }
+  },
+  "exposure_breakdown": {
+    "public_internet": {
+      "count": 23,
+      "assets": [
+        "customer-data-backup",
+        "ci-cd-logs",
+        "public-assets-bucket"
+      ],
+      "data_types": ["PII", "Secrets", "API Keys"]
+    },
+    "shared_externally": {
+      "count": 8,
+      "assets": [
+        "developer-workstation-snapshot"
+      ],
+      "data_types": ["Secrets", "Credentials"]
+    },
+    "internal_only": {
+      "count": 311,
+      "encrypted": 245,
+      "unencrypted": 66
+    }
+  },
+  "top_risks": [
+    {
+      "rank": 1,
+      "asset_name": "payment-processing-db",
+      "risk_score": 95,
+      "issue": "Unencrypted database containing credit card data",
+      "data_types": ["Payment Data", "PII"],
+      "record_count": 45000,
+      "recommendation": "Enable encryption at rest immediately and implement tokenization"
+    },
+    {
+      "rank": 2,
+      "asset_name": "ci-cd-logs",
+      "risk_score": 95,
+      "issue": "AWS access keys exposed in publicly readable S3 bucket",
+      "data_types": ["Secrets"],
+      "exposure": "Public Internet",
+      "recommendation": "Revoke exposed keys, remove public access, rotate all credentials"
+    },
+    {
+      "rank": 3,
+      "asset_name": "customer-data-backup",
+      "risk_score": 92,
+      "issue": "Unencrypted PII in publicly accessible S3 bucket",
+      "data_types": ["PII"],
+      "record_count": 3500000,
+      "recommendation": "Remove public access immediately, enable encryption, review access logs"
+    },
+    {
+      "rank": 4,
+      "asset_name": "developer-workstation-snapshot",
+      "risk_score": 88,
+      "issue": "Private SSH keys in snapshot shared with external AWS account",
+      "data_types": ["Secrets"],
+      "recommendation": "Revoke snapshot sharing, rotate all SSH keys, audit access"
+    }
+  ],
+  "compliance_impact": {
+    "frameworks": [
+      {
+        "name": "GDPR",
+        "violations": 12,
+        "risk": "Unencrypted PII exposure violates Article 32"
+      },
+      {
+        "name": "PCI DSS",
+        "violations": 4,
+        "risk": "Unencrypted cardholder data violates Requirement 3.4"
+      },
+      {
+        "name": "HIPAA",
+        "violations": 0
+      }
+    ]
+  }
+}

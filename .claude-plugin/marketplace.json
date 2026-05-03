@@ -1,0 +1,20 @@
+{
+  "name": "orcasecurity",
+  "description": "Skills and plugins to accelerate security workflows with the Orca Cloud Platform",
+  "owner": {
+    "name": "Orca Security",
+    "email": "support@orca.security"
+  },
+  "plugins": [
+    {
+      "name": "orca-skills",
+      "description": "Orca Security skills collection for cloud security workflows",
+      "version": "2.0.0",
+      "source": "./",
+      "author": {
+        "name": "Orca Security",
+        "email": "support@orca.security"
+      }
+    }
+  ]
+}

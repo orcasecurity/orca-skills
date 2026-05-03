@@ -1,0 +1,36 @@
+# MCP Configuration (contains secrets)
+.mcp.json
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Test files
+test-alerts.json
+*.test.js
+
+# Logs
+*.log
+
+# Temporary files
+tmp/
+temp/
+
+# Promptfoo eval results
+eval-results.json
+.promptfoo/
+output/

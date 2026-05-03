@@ -1,0 +1,103 @@
+{
+  "root_alert": {
+    "alert_id": "orca-3380725",
+    "subject": "Unencrypted RDS Instance Detected",
+    "severity": "high",
+    "risk_score": 78,
+    "asset": {
+      "asset_id": "550e8400-e29b-41d4-a716-446655440002",
+      "asset_name": "customer-db-prod",
+      "asset_type": "rds_instance",
+      "cloud_vendor": "aws",
+      "region": "us-east-1"
+    }
+  },
+  "related_alerts": [
+    {
+      "alert_id": "orca-3380726",
+      "subject": "RDS Instance Missing Automated Backups",
+      "severity": "medium",
+      "risk_score": 65,
+      "relationship": "same_asset",
+      "will_close_if_remediated": true,
+      "reason": "Enabling encryption requires recreation, which will enforce backup configuration"
+    },
+    {
+      "alert_id": "orca-3380727",
+      "subject": "Database Accessible from Public Subnet",
+      "severity": "critical",
+      "risk_score": 92,
+      "relationship": "same_asset",
+      "will_close_if_remediated": false,
+      "reason": "Network configuration is independent of encryption setting"
+    },
+    {
+      "alert_id": "orca-3380728",
+      "subject": "RDS Instance Using Default Security Group",
+      "severity": "medium",
+      "risk_score": 58,
+      "relationship": "same_asset",
+      "will_close_if_remediated": false,
+      "reason": "Security group configuration requires separate remediation"
+    },
+    {
+      "alert_id": "orca-3380729",
+      "subject": "Unencrypted EBS Volume Attached to Database Instance",
+      "severity": "high",
+      "risk_score": 75,
+      "relationship": "dependent_resource",
+      "will_close_if_remediated": true,
+      "reason": "EBS encryption will be enforced when RDS instance is recreated with encryption"
+    },
+    {
+      "alert_id": "orca-3380730",
+      "subject": "CloudWatch Logs Not Encrypted for RDS",
+      "severity": "low",
+      "risk_score": 42,
+      "relationship": "dependent_resource",
+      "will_close_if_remediated": true,
+      "reason": "Log encryption can be enabled during RDS recreation"
+    }
+  ],
+  "blast_radius": {
+    "alerts_will_close": 3,
+    "alerts_remain_open": 2,
+    "risk_score_reduction": 182,
+    "affected_assets": [
+      {
+        "asset_id": "550e8400-e29b-41d4-a716-446655440002",
+        "asset_name": "customer-db-prod",
+        "asset_type": "rds_instance"
+      },
+      {
+        "asset_id": "550e8400-e29b-41d4-a716-446655440003",
+        "asset_name": "customer-db-prod-vol-1",
+        "asset_type": "ebs_volume"
+      },
+      {
+        "asset_id": "550e8400-e29b-41d4-a716-446655440004",
+        "asset_name": "customer-db-prod-logs",
+        "asset_type": "cloudwatch_log_group"
+      }
+    ],
+    "compliance_impact": {
+      "frameworks_affected": ["PCI DSS", "HIPAA", "SOC 2"],
+      "controls_will_pass": [
+        "PCI DSS 3.4 - Encryption of cardholder data",
+        "HIPAA 164.312(a)(2)(iv) - Encryption and decryption"
+      ]
+    }
+  },
+  "remediation_effort": {
+    "estimated_downtime_minutes": 45,
+    "automation_available": true,
+    "requires_approval": true,
+    "steps": [
+      "Create snapshot of existing RDS instance",
+      "Create new encrypted RDS instance from snapshot",
+      "Update application connection strings",
+      "Verify connectivity and data integrity",
+      "Delete old unencrypted instance"
+    ]
+  }
+}

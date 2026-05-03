@@ -1,0 +1,529 @@
+# Orca Skills Evaluation Suite - Layer 1 Testing
+# Tests analysis logic and formatting with mock data (no live MCP required)
+# Run with: promptfoo eval
+# View results: promptfoo view
+
+description: "Layer 1 tests for Orca Security skills - analysis logic and formatting"
+
+# Models to test against
+providers:
+  - id: anthropic:messages:claude-haiku-4-5-20251001
+    config:
+      temperature: 0
+  # Uncomment to test cross-model compatibility:
+  # - id: anthropic:messages:claude-sonnet-4-5-20250929
+  # - id: anthropic:messages:claude-3-haiku-20240307
+
+# Default test configuration
+defaultTest:
+  options:
+    provider: anthropic:messages:claude-haiku-4-5-20251001
+
+# Base prompt that simulates skills being loaded
+prompts:
+  - |
+    You are analyzing cloud security data using Orca Security skills.
+
+    Given the following data from Orca Security:
+    {{data}}
+
+    Task: {{task}}
+
+    Analyze the data and produce output according to the skill instructions.
+
+tests:
+  #############################################################################
+  # SKILL: orca-triage
+  #############################################################################
+  - description: "[orca-triage] Parse alert JSON and calculate risk metrics"
+    vars:
+      data: file://test-data/sample-orca-triage.json
+      task: |
+        Analyze this alert and produce a triage dashboard with:
+        - VERDICT section with risk assessment
+        - TIMELINE section showing event sequence
+        - Risk score from the data
+        - Alert ID and severity
+    assert:
+      - type: javascript
+        value: |
+          // Should include alert ID
+          if (!output.includes('orca-3636513')) return false;
+
+          // Should have verdict section
+          if (!output.toUpperCase().includes('VERDICT')) return false;
+
+          // Should have timeline section
+          if (!output.toUpperCase().includes('TIMELINE')) return false;
+
+          // Should include risk score (85)
+          if (!output.includes('85')) return false;
+
+          return true;
+
+  - description: "[orca-triage] Handle timeline with multiple events"
+    vars:
+      data: file://test-data/sample-orca-triage.json
+      task: "Extract and format the timeline events chronologically"
+    assert:
+      - type: javascript
+        value: |
+          // Should extract timeline events (check for timestamps and key phrases)
+          const lowerOutput = output.toLowerCase();
+
+          // Check for timeline-related content
+          const hasTimelineSection = lowerOutput.includes('timeline') || lowerOutput.includes('chronological');
+
+          // Check for at least 3 of the 4 key events (more flexible)
+          let eventCount = 0;
+          if (lowerOutput.includes('baseline') || lowerOutput.includes('normal')) eventCount++;
+          if (lowerOutput.includes('14:20') || lowerOutput.includes('spike') || lowerOutput.includes('start')) eventCount++;
+          if (lowerOutput.includes('peak') || lowerOutput.includes('150')) eventCount++;
+          if (lowerOutput.includes('ceased') || lowerOutput.includes('stopped') || lowerOutput.includes('14:25')) eventCount++;
+
+          return hasTimelineSection && eventCount >= 3;
+
+  - description: "[orca-triage] Calculate anomaly deviation correctly"
+    vars:
+      data: file://test-data/sample-orca-triage.json
+      task: "Calculate the percentage deviation from baseline (baseline=12, observed=450)"
+    assert:
+      - type: javascript
+        value: |
+          // Deviation should be 3650% ((450-12)/12 * 100)
+          // Accept if output contains 3650 or correctly calculates it
+          return output.includes('3650') || output.includes('3,650');
+
+  #############################################################################
+  # SKILL: orca-impact-analysis
+  #############################################################################
+  - description: "[orca-impact-analysis] Calculate alert closure percentage"
+    vars:
+      data: file://test-data/sample-orca-impact.json
+      task: "Calculate how many related alerts will close if the root alert is remediated (3 out of 5 will close)"
+    assert:
+      - type: javascript
+        value: |
+          // Should mention 3 alerts closing out of 5
+          const hasThree = output.includes('3') || output.includes('three');
+          const hasFive = output.includes('5') || output.includes('five');
+
+          // Or calculate percentage: 60%
+          const hasPercentage = output.includes('60%') || output.includes('60 percent');
+
+          return (hasThree && hasFive) || hasPercentage;
+
+  - description: "[orca-impact-analysis] Identify blast radius scope"
+    vars:
+      data: file://test-data/sample-orca-impact.json
+      task: "Determine blast radius - how many assets are affected? (3 total)"
+    assert:
+      - type: javascript
+        value: |
+          // Should identify 3 affected assets
+          const mentionsThreeAssets = /3\s+(assets?|resources?)/i.test(output);
+
+          // Or list them: RDS instance, EBS volume, CloudWatch log group
+          const listsAssets = (output.includes('rds') || output.includes('RDS')) &&
+                             (output.includes('ebs') || output.includes('EBS') || output.includes('volume')) &&
+                             (output.includes('cloudwatch') || output.includes('CloudWatch') || output.includes('log'));
+
+          return mentionsThreeAssets || listsAssets;
+
+  #############################################################################
+  # SKILL: orca-config-origin
+  #############################################################################
+  - description: "[orca-config-origin] Identify deployment method"
+    vars:
+      data: file://test-data/sample-orca-config-origin.json
+      task: "Determine how this resource was deployed and who deployed it"
+    assert:
+      - type: icontains
+        value: "terraform"
+      - type: javascript
+        value: |
+          // Should mention the deployer (sarah or devops-user-sarah)
+          return output.toLowerCase().includes('sarah');
+
+  - description: "[orca-config-origin] Parse deployment timeline"
+    vars:
+      data: file://test-data/sample-orca-config-origin.json
+      task: "Extract the deployment timeline events (should have 5 events)"
+    assert:
+      - type: javascript
+        value: |
+          // Should mention key events: plan, apply, API call, drift, scan
+          const hasPlan = output.toLowerCase().includes('plan');
+          const hasApply = output.toLowerCase().includes('apply');
+          const hasApi = output.toLowerCase().includes('api') || output.toLowerCase().includes('putbucketacl');
+
+          return hasPlan && hasApply && hasApi;
+
+  #############################################################################
+  # SKILL: orca-morning-briefing
+  #############################################################################
+  - description: "[orca-briefing] Calculate net alert change"
+    vars:
+      data: file://test-data/sample-orca-briefing.json
+      task: "Calculate net alert change in 24 hours (12 new - 8 closed = +4)"
+    assert:
+      - type: javascript
+        value: |
+          // Should show net change of +4
+          const hasNetChange = output.includes('+4') || output.includes('net: 4') ||
+                              (output.includes('12') && output.includes('8') && output.includes('4'));
+          return hasNetChange;
+
+  - description: "[orca-briefing] Rank top priorities by risk score"
+    vars:
+      data: file://test-data/sample-orca-briefing.json
+      task: "List top 3 priorities ordered by risk score (95, 92, 88)"
+    assert:
+      - type: javascript
+        value: |
+          // Extract all numbers that look like risk scores
+          const scores = output.match(/\b(9[0-9]|8[5-9])\b/g);
+          if (!scores || scores.length < 3) return false;
+
+          // Check if highest scores appear (95, 92, 88)
+          return scores.includes('95') && scores.includes('92') && scores.includes('88');
+
+  - description: "[orca-briefing] Identify trending categories"
+    vars:
+      data: file://test-data/sample-orca-briefing.json
+      task: "Identify which alert category is trending up (+50%) and which is trending down (-20%)"
+    assert:
+      - type: javascript
+        value: |
+          const hasIamUp = output.toLowerCase().includes('iam') &&
+                          (output.includes('50%') || output.includes('up') || output.includes('increas'));
+          const hasComplianceDown = output.toLowerCase().includes('compliance') &&
+                                   (output.includes('20%') || output.includes('down') || output.includes('decreas'));
+          return hasIamUp && hasComplianceDown;
+
+  #############################################################################
+  # SKILL: orca-asset-profile
+  #############################################################################
+  - description: "[orca-asset] Identify crown jewel status"
+    vars:
+      data: file://test-data/sample-orca-asset.json
+      task: "Determine if this asset is a crown jewel and why"
+    assert:
+      - type: icontains
+        value: "crown jewel"
+      - type: javascript
+        value: |
+          // Should mention administrative access as the reason
+          return output.toLowerCase().includes('admin');
+
+  - description: "[orca-asset] Count attack paths and identify critical ones"
+    vars:
+      data: file://test-data/sample-orca-asset.json
+      task: "How many attack paths exist? Which ones target crown jewels? (3 paths, 1 targets crown jewel)"
+    assert:
+      - type: javascript
+        value: |
+          // Should mention 3 paths/attack paths
+          const hasThreePaths = output.includes('3') || output.includes('three');
+
+          // Should identify that 1 targets crown jewel
+          const mentionsCrownJewelPath = output.toLowerCase().includes('crown jewel');
+
+          return hasThreePaths && mentionsCrownJewelPath;
+
+  - description: "[orca-asset] Calculate permission usage ratio"
+    vars:
+      data: file://test-data/sample-orca-asset.json
+      task: "Calculate what percentage of granted permissions are actually used (47 used out of 9547 granted)"
+    assert:
+      - type: javascript
+        value: |
+          // Should calculate ~0.5% usage (47/9547)
+          // Accept 0.5%, 0.49%, or mention 47 out of 9547
+          const hasPercentage = output.includes('0.5%') || output.includes('0.49%');
+          const hasRatio = (output.includes('47') && output.includes('9547')) ||
+                          (output.includes('47') && output.includes('9,547'));
+
+          return hasPercentage || hasRatio;
+
+  #############################################################################
+  # SKILL: orca-compliance-gap
+  #############################################################################
+  - description: "[orca-compliance] Calculate overall compliance score"
+    vars:
+      data: file://test-data/sample-orca-compliance.json
+      task: "Calculate the PCI DSS compliance score (42 passing + 12 failing + 4 N/A = 58 total)"
+    assert:
+      - type: javascript
+        value: |
+          // Score should be 78 (or 42/54 = 77.7% if excluding N/A)
+          return output.includes('78') || output.includes('77');
+
+  - description: "[orca-compliance] Prioritize critical gaps"
+    vars:
+      data: file://test-data/sample-orca-compliance.json
+      task: "How many critical gaps exist? (2 critical-severity failing controls)"
+    assert:
+      - type: javascript
+        value: |
+          // Should identify 2 critical gaps
+          const mentionsCritical = output.toLowerCase().includes('critical');
+          const hasCount = output.includes('2') || output.includes('two');
+
+          return mentionsCritical && hasCount;
+
+  #############################################################################
+  # SKILL: orca-data-exposure
+  #############################################################################
+  - description: "[orca-data] Calculate total findings by data type"
+    vars:
+      data: file://test-data/sample-orca-data-exposure.json
+      task: "Sum up findings by data type: PII (187) + Secrets (45) + Credentials (28) + API Keys (67) + Payment (15) = 342 total"
+    assert:
+      - type: javascript
+        value: |
+          // Should mention 342 total or show the breakdown
+          const hasTotal = output.includes('342');
+          const hasBreakdown = output.includes('187') && output.includes('45') &&
+                              output.includes('28') && output.includes('67') && output.includes('15');
+
+          return hasTotal || hasBreakdown;
+
+  - description: "[orca-data] Identify highest risk exposures"
+    vars:
+      data: file://test-data/sample-orca-data-exposure.json
+      task: "Rank the top 4 risks by risk score (95, 95, 92, 88)"
+    assert:
+      - type: javascript
+        value: |
+          // Should list top risks with scores 95, 92, 88
+          const has95 = output.includes('95');
+          const has92 = output.includes('92');
+          const has88 = output.includes('88');
+
+          return has95 && has92 && has88;
+
+  #############################################################################
+  # SKILL: orca-exposure-map
+  #############################################################################
+  - description: "[orca-exposure] Calculate total internet-facing assets"
+    vars:
+      data: file://test-data/sample-orca-exposure.json
+      task: "Sum up internet-facing assets by type: 12 LBs + 8 EC2 + 94 S3 + 3 RDS + 39 API gateways = 156 total"
+    assert:
+      - type: javascript
+        value: |
+          // Should show 156 total
+          return output.includes('156');
+
+  - description: "[orca-exposure] Identify high-risk exposures"
+    vars:
+      data: file://test-data/sample-orca-exposure.json
+      task: "How many high-risk exposures exist? (23 total: 2 LBs + 4 EC2 + 12 S3 + 3 RDS + 2 API gateways)"
+    assert:
+      - type: javascript
+        value: |
+          // Should mention 23 high-risk
+          const hasHighRisk = output.toLowerCase().includes('high') && output.toLowerCase().includes('risk');
+          const hasCount = output.includes('23');
+
+          return hasHighRisk && hasCount;
+
+  #############################################################################
+  # SKILL: orca-identity-review
+  #############################################################################
+  - description: "[orca-identity] Calculate overprivilege percentage"
+    vars:
+      data: file://test-data/sample-orca-identity.json
+      task: "Calculate unused permission percentage (9500 unused out of 9547 total = 99.5%)"
+    assert:
+      - type: javascript
+        value: |
+          // Should show ~99% or 99.5%
+          return output.includes('99') || output.includes('9,500') || output.includes('9500');
+
+  - description: "[orca-identity] Identify security findings count"
+    vars:
+      data: file://test-data/sample-orca-identity.json
+      task: "How many security findings exist for this identity? (5 total)"
+    assert:
+      - type: javascript
+        value: |
+          // Should mention 5 findings or list them
+          const hasFive = output.includes('5') || output.includes('five');
+          const mentionsFindings = output.toLowerCase().includes('finding');
+
+          // Or lists key issues: MFA, access key age, overprivileged, inactive key, password
+          const listIssues = (output.toLowerCase().includes('mfa') &&
+                             output.toLowerCase().includes('key') &&
+                             output.toLowerCase().includes('privileg'));
+
+          return (hasFive && mentionsFindings) || listIssues;
+
+  #############################################################################
+  # SKILL: orca-investigate
+  #############################################################################
+  - description: "[orca-investigate] Calculate event rate anomaly"
+    vars:
+      data: file://test-data/sample-orca-cdr.json
+      task: "Analyze the s3:GetObject event burst: 450 events vs baseline of 12. What's the deviation?"
+    assert:
+      - type: javascript
+        value: |
+          // Should calculate 3650% deviation or mention 450 vs 12
+          const hasDeviation = output.includes('3650') || output.includes('3,650');
+          const hasComparison = (output.includes('450') && output.includes('12'));
+
+          return hasDeviation || hasComparison;
+
+  - description: "[orca-investigate] Identify session count and suspicious ones"
+    vars:
+      data: file://test-data/sample-orca-cdr.json
+      task: "How many sessions were detected? Which ones are suspicious? (3 sessions total, 1 suspicious)"
+    assert:
+      - type: javascript
+        value: |
+          // Should mention 3 sessions
+          const hasThree = output.includes('3') || output.includes('three');
+
+          // Should identify suspicious session (from IP 203.0.113.99)
+          const mentionsSuspicious = output.toLowerCase().includes('suspicious');
+          const mentionsIp = output.includes('203.0.113.99');
+
+          return hasThree && mentionsSuspicious;
+
+  - description: "[orca-investigate] Map MITRE ATT&CK techniques"
+    vars:
+      data: file://test-data/sample-orca-cdr.json
+      task: "Map observed actions to MITRE ATT&CK tactics (should find: Initial Access, Discovery, Collection)"
+    assert:
+      - type: javascript
+        value: |
+          // Should mention MITRE ATT&CK
+          const hasMitre = output.toLowerCase().includes('mitre') || output.toLowerCase().includes('att&ck');
+
+          // Should identify tactics
+          const hasInitialAccess = output.toLowerCase().includes('initial access');
+          const hasDiscovery = output.toLowerCase().includes('discovery');
+          const hasCollection = output.toLowerCase().includes('collection');
+
+          return hasMitre && (hasInitialAccess || hasDiscovery || hasCollection);
+
+  #############################################################################
+  # EDGE CASE TESTS
+  #############################################################################
+  - description: "[edge-case] Handle empty arrays gracefully"
+    vars:
+      data: '{"alerts": [], "assets": [], "findings": []}'
+      task: "Analyze this data and report findings"
+    assert:
+      - type: javascript
+        value: |
+          // Should not crash, should mention no findings/data/alerts
+          const mentionsEmpty = output.toLowerCase().includes('no ') ||
+                               output.toLowerCase().includes('empty') ||
+                               output.toLowerCase().includes('zero') ||
+                               output.includes('0');
+          return mentionsEmpty;
+
+  - description: "[edge-case] Handle missing optional fields"
+    vars:
+      data: '{"alert_id": "orca-test", "severity": "high"}'
+      task: "Analyze this minimal alert data"
+    assert:
+      - type: javascript
+        value: |
+          // Should include alert ID and severity
+          const hasId = output.includes('orca-test');
+          const hasSeverity = output.toLowerCase().includes('high');
+
+          // Should not crash or show undefined/null
+          const noErrors = !output.includes('undefined') && !output.includes('null');
+
+          return hasId && hasSeverity && noErrors;
+
+  #############################################################################
+  # SKILL: orca-cloud-cost-optimizer
+  #############################################################################
+  - description: "[orca-cloud-cost-optimizer] Calculate gp2→gp3 EBS savings correctly"
+    vars:
+      data: file://test-data/sample-orca-cost-optimizer.json
+      task: |
+        Calculate the monthly savings from migrating all gp2 EBS volumes to gp3.
+        The data has 3 gp2 volumes totaling 800 GB.
+        gp2 costs $0.10/GB/month, gp3 costs $0.08/GB/month (20% savings).
+    assert:
+      - type: javascript
+        value: |
+          // gp2 cost: 800 GB * $0.10 = $80/month
+          // gp3 cost: 800 GB * $0.08 = $64/month
+          // savings: $16/month
+          const has16 = output.includes('16') || output.includes('$16');
+          const hasSavings = output.toLowerCase().includes('saving') || output.toLowerCase().includes('reduc');
+          const hasGp3 = output.toLowerCase().includes('gp3');
+          return has16 && hasSavings && hasGp3;
+
+  - description: "[orca-cloud-cost-optimizer] Identify and prioritize top savings opportunities"
+    vars:
+      data: file://test-data/sample-orca-cost-optimizer.json
+      task: |
+        Analyze the optimization_summary and rank the top 3 cost savings opportunities
+        by monthly savings amount (highest first). List them with their monthly savings.
+    assert:
+      - type: javascript
+        value: |
+          // Top 3 by monthly savings:
+          // 1. rds_multi_az_staging: $438/month
+          // 2. s3_lifecycle_policies: $120/month
+          // 3. generation_upgrade: $103.20/month
+          const lowerOutput = output.toLowerCase();
+
+          // Should mention RDS or Multi-AZ as top item (biggest savings at $438)
+          const hasRds = lowerOutput.includes('rds') || lowerOutput.includes('multi') || lowerOutput.includes('438');
+
+          // Should mention S3 or lifecycle policies
+          const hasS3 = lowerOutput.includes('s3') || lowerOutput.includes('lifecycle') || lowerOutput.includes('120');
+
+          // Should mention generation upgrade or m4/c4
+          const hasGenUpgrade = lowerOutput.includes('generation') || lowerOutput.includes('m4') ||
+                                lowerOutput.includes('c4') || lowerOutput.includes('103');
+
+          return hasRds && hasS3 && hasGenUpgrade;
+
+  - description: "[orca-cloud-cost-optimizer] Produce report with executive summary and recommendations"
+    vars:
+      data: file://test-data/sample-orca-cost-optimizer.json
+      task: |
+        Produce a cost optimization report for this cloud environment.
+        Include an executive summary with total savings range and top 5 quick wins.
+        The total monthly savings range should be $750-$1,050/month.
+    assert:
+      - type: javascript
+        value: |
+          const lowerOutput = output.toLowerCase();
+
+          // Should have executive summary section
+          const hasExecSummary = lowerOutput.includes('executive summary') ||
+                                lowerOutput.includes('exec summary');
+
+          // Should include savings range numbers (750 and 1050 or 1,050)
+          const hasSavingsLow = output.includes('750');
+          const hasSavingsHigh = output.includes('1,050') || output.includes('1050');
+
+          // Should have quick wins or recommendations
+          const hasQuickWins = lowerOutput.includes('quick win') ||
+                              lowerOutput.includes('recommendation') ||
+                              lowerOutput.includes('top ');
+
+          // Should have implementation steps or roadmap
+          const hasRoadmap = lowerOutput.includes('implement') ||
+                            lowerOutput.includes('roadmap') ||
+                            lowerOutput.includes('phase');
+
+          return hasExecSummary && (hasSavingsLow || hasSavingsHigh) && hasQuickWins && hasRoadmap;
+
+# Output configuration
+outputPath: ./eval-results.json
+
+# Sharing configuration (optional)
+sharing: false
