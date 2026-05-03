@@ -2,10 +2,9 @@ name: Test Orca Skills
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main ]
   pull_request:
     branches: [ main ]
-  workflow_dispatch:  # Allows manual trigger from GitHub UI
 
 jobs:
   eval-skills:
