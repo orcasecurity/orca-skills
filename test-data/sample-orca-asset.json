@@ -1,0 +1,254 @@
+{
+  "asset": {
+    "asset_id": "550e8400-e29b-41d4-a716-446655440006",
+    "asset_name": "bastion-admin",
+    "asset_type": "vm",
+    "cloud_vendor": "aws",
+    "cloud_vendor_id": "i-bastion123xyz",
+    "region": "us-east-1",
+    "account_id": "123456789012",
+    "state": "running",
+    "created_at": "2025-11-15T10:30:00Z",
+    "tags": {
+      "Environment": "production",
+      "Role": "bastion",
+      "Team": "security",
+      "CostCenter": "infra-ops"
+    }
+  },
+  "configuration": {
+    "instance_type": "t3.small",
+    "ami_id": "ami-bastion-hardened-v2",
+    "vpc_id": "vpc-prod-main",
+    "subnet_id": "subnet-public-1a",
+    "security_groups": [
+      {
+        "id": "sg-bastion-inbound",
+        "name": "bastion-ssh-only",
+        "rules_count": 3
+      }
+    ],
+    "iam_role": "bastion-admin-role",
+    "public_ip": "198.51.100.42",
+    "private_ip": "10.0.1.50",
+    "key_pair": "bastion-prod-key"
+  },
+  "security_posture": {
+    "risk_score": 72,
+    "is_crown_jewel": true,
+    "crown_jewel_reason": "Administrative access to production infrastructure",
+    "is_internet_facing": true,
+    "open_alerts": 5,
+    "attack_paths": 3,
+    "compliance_violations": 2
+  },
+  "alerts": [
+    {
+      "alert_id": "orca-3636501",
+      "subject": "IAM Role Assumed from New IP Address",
+      "severity": "medium",
+      "risk_score": 65,
+      "category": "malicious_activity",
+      "created_at": "2026-04-22T14:18:00Z",
+      "state": "open"
+    },
+    {
+      "alert_id": "orca-3636502",
+      "subject": "SSH Access from Unusual Geographic Location",
+      "severity": "high",
+      "risk_score": 78,
+      "category": "malicious_activity",
+      "created_at": "2026-04-22T11:45:00Z",
+      "state": "open"
+    },
+    {
+      "alert_id": "orca-3636503",
+      "subject": "Instance Using Outdated AMI",
+      "severity": "medium",
+      "risk_score": 58,
+      "category": "compliance",
+      "created_at": "2026-04-20T09:00:00Z",
+      "state": "open"
+    },
+    {
+      "alert_id": "orca-3636504",
+      "subject": "Overly Permissive Security Group Rule",
+      "severity": "high",
+      "risk_score": 75,
+      "category": "network",
+      "created_at": "2026-04-19T13:30:00Z",
+      "state": "open"
+    },
+    {
+      "alert_id": "orca-3636505",
+      "subject": "No CloudWatch Monitoring Enabled",
+      "severity": "low",
+      "risk_score": 35,
+      "category": "compliance",
+      "created_at": "2026-04-18T08:15:00Z",
+      "state": "open"
+    }
+  ],
+  "attack_paths": [
+    {
+      "path_id": "ap-001",
+      "severity": "critical",
+      "length": 3,
+      "description": "Internet → Bastion (SSH) → IAM Role Assumption → RDS Admin Access",
+      "steps": [
+        {
+          "step": 1,
+          "action": "SSH access via compromised credentials",
+          "technique": "T1078 - Valid Accounts"
+        },
+        {
+          "step": 2,
+          "action": "Assume bastion-admin-role via EC2 instance profile",
+          "technique": "T1078.004 - Cloud Accounts"
+        },
+        {
+          "step": 3,
+          "action": "Access production RDS instances with elevated permissions",
+          "technique": "T1530 - Data from Cloud Storage"
+        }
+      ],
+      "risk_score": 92,
+      "targets_crown_jewel": true
+    },
+    {
+      "path_id": "ap-002",
+      "severity": "high",
+      "length": 2,
+      "description": "Internet → Bastion (SSH) → S3 Bucket Access",
+      "steps": [
+        {
+          "step": 1,
+          "action": "SSH access via port 22",
+          "technique": "T1021.004 - Remote Services: SSH"
+        },
+        {
+          "step": 2,
+          "action": "Read/write to S3 buckets via IAM role",
+          "technique": "T1530 - Data from Cloud Storage"
+        }
+      ],
+      "risk_score": 78,
+      "targets_crown_jewel": false
+    },
+    {
+      "path_id": "ap-003",
+      "severity": "medium",
+      "length": 2,
+      "description": "Internet → Bastion (SSH) → Lateral Movement to Other EC2 Instances",
+      "steps": [
+        {
+          "step": 1,
+          "action": "Initial access via SSH",
+          "technique": "T1078 - Valid Accounts"
+        },
+        {
+          "step": 2,
+          "action": "Use stored SSH keys to access other instances in VPC",
+          "technique": "T1021.004 - Remote Services: SSH"
+        }
+      ],
+      "risk_score": 68,
+      "targets_crown_jewel": false
+    }
+  ],
+  "permissions": {
+    "iam_role": "bastion-admin-role",
+    "attached_policies": [
+      {
+        "policy_name": "AdministratorAccess",
+        "policy_type": "AWS Managed",
+        "risk": "critical",
+        "reason": "Full administrative access to all AWS services"
+      },
+      {
+        "policy_name": "bastion-s3-access",
+        "policy_type": "Customer Managed",
+        "risk": "medium",
+        "permissions": ["s3:GetObject", "s3:PutObject", "s3:ListBucket"]
+      }
+    ],
+    "overprivileged": true,
+    "unused_permissions": [
+      "dynamodb:*",
+      "lambda:*",
+      "cloudformation:*"
+    ],
+    "last_used": "2026-04-22T16:30:00Z"
+  },
+  "network_exposure": {
+    "is_public": true,
+    "public_ip": "198.51.100.42",
+    "open_ports": [
+      {
+        "port": 22,
+        "protocol": "tcp",
+        "source": "0.0.0.0/0",
+        "risk": "high",
+        "reason": "SSH exposed to entire internet"
+      }
+    ],
+    "recent_connections": {
+      "unique_ips_24h": 8,
+      "countries": ["United States", "Singapore", "Germany"],
+      "suspicious_ips": [
+        {
+          "ip": "203.0.113.99",
+          "country": "Unknown",
+          "first_seen": "2026-04-22T14:15:00Z",
+          "connection_count": 23,
+          "marked_as_suspicious": true
+        }
+      ]
+    }
+  },
+  "compliance_status": {
+    "frameworks": [
+      {
+        "name": "CIS AWS Foundations",
+        "passing_controls": 42,
+        "failing_controls": 8
+      },
+      {
+        "name": "PCI DSS",
+        "passing_controls": 28,
+        "failing_controls": 5
+      }
+    ],
+    "violations": [
+      {
+        "control": "CIS 4.1 - Ensure no security groups allow ingress from 0.0.0.0/0 to port 22",
+        "framework": "CIS AWS Foundations",
+        "severity": "high"
+      },
+      {
+        "control": "PCI DSS 7.1 - Limit access to system components",
+        "framework": "PCI DSS",
+        "severity": "medium"
+      }
+    ]
+  },
+  "activity_summary": {
+    "cdr_events_24h": 1456,
+    "most_common_actions": [
+      {
+        "action": "sts:AssumeRole",
+        "count": 234
+      },
+      {
+        "action": "s3:GetObject",
+        "count": 567
+      },
+      {
+        "action": "ec2:DescribeInstances",
+        "count": 123
+      }
+    ],
+    "unique_actors": 3,
+    "peak_activity_hour": "2026-04-22T14:00:00Z"
+  }
+}

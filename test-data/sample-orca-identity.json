@@ -1,0 +1,269 @@
+{
+  "identity": {
+    "type": "iam_user",
+    "arn": "arn:aws:iam::123456789012:user/anika",
+    "name": "anika",
+    "account_id": "123456789012",
+    "created_at": "2025-06-12T14:30:00Z",
+    "last_activity": "2026-04-22T16:45:00Z",
+    "status": "active"
+  },
+  "access_summary": {
+    "has_console_access": true,
+    "has_programmatic_access": true,
+    "mfa_enabled": false,
+    "password_last_changed": "2025-11-03T09:15:00Z",
+    "password_age_days": 171,
+    "access_keys": [
+      {
+        "access_key_id": "AKIAIOSFODNN7EXAMPLE",
+        "status": "active",
+        "created_at": "2025-08-20T10:00:00Z",
+        "last_used": "2026-04-22T16:30:00Z",
+        "age_days": 245
+      },
+      {
+        "access_key_id": "AKIAI44QH8DHBEXAMPLE",
+        "status": "inactive",
+        "created_at": "2025-03-15T08:00:00Z",
+        "last_used": "2025-09-10T12:00:00Z",
+        "age_days": 404
+      }
+    ]
+  },
+  "permissions": {
+    "attached_policies": [
+      {
+        "policy_name": "AdministratorAccess",
+        "policy_type": "AWS Managed",
+        "policy_arn": "arn:aws:iam::aws:policy/AdministratorAccess",
+        "attached_at": "2025-06-12T14:35:00Z",
+        "risk_level": "critical",
+        "actions_granted": ["*:*"],
+        "resources": ["*"]
+      },
+      {
+        "policy_name": "PowerUserAccess",
+        "policy_type": "AWS Managed",
+        "policy_arn": "arn:aws:iam::aws:policy/PowerUserAccess",
+        "attached_at": "2025-07-20T11:00:00Z",
+        "risk_level": "high",
+        "actions_granted": ["All except IAM"],
+        "resources": ["*"]
+      }
+    ],
+    "inline_policies": [
+      {
+        "policy_name": "S3FullAccessCustom",
+        "risk_level": "high",
+        "actions_granted": ["s3:*"],
+        "resources": ["*"]
+      }
+    ],
+    "group_memberships": [
+      {
+        "group_name": "Administrators",
+        "group_arn": "arn:aws:iam::123456789012:group/Administrators",
+        "policies": ["AdministratorAccess"]
+      },
+      {
+        "group_name": "Developers",
+        "group_arn": "arn:aws:iam::123456789012:group/Developers",
+        "policies": ["DeveloperPolicy"]
+      }
+    ],
+    "effective_permissions": {
+      "total_actions": 9547,
+      "high_risk_actions": 234,
+      "administrative": true,
+      "can_modify_iam": true,
+      "can_delete_resources": true,
+      "can_access_sensitive_data": true
+    }
+  },
+  "usage_analysis": {
+    "last_90_days": {
+      "total_actions": 2345,
+      "unique_actions": 47,
+      "services_accessed": ["s3", "ec2", "rds", "iam", "cloudwatch", "lambda"],
+      "most_used_actions": [
+        {
+          "action": "s3:GetObject",
+          "count": 1234,
+          "percentage": 52.6
+        },
+        {
+          "action": "s3:PutObject",
+          "count": 567,
+          "percentage": 24.2
+        },
+        {
+          "action": "ec2:DescribeInstances",
+          "count": 234,
+          "percentage": 10.0
+        },
+        {
+          "action": "rds:DescribeDBInstances",
+          "count": 123,
+          "percentage": 5.2
+        },
+        {
+          "action": "iam:ListUsers",
+          "count": 89,
+          "percentage": 3.8
+        }
+      ],
+      "unused_permissions": {
+        "count": 9500,
+        "percentage": 99.5,
+        "high_risk_unused": [
+          "iam:CreateUser",
+          "iam:DeleteUser",
+          "iam:AttachUserPolicy",
+          "ec2:TerminateInstances",
+          "rds:DeleteDBInstance",
+          "s3:DeleteBucket",
+          "dynamodb:DeleteTable",
+          "lambda:DeleteFunction"
+        ]
+      }
+    }
+  },
+  "privilege_assessment": {
+    "is_overprivileged": true,
+    "overprivilege_score": 95,
+    "reasons": [
+      "Has AdministratorAccess policy but only uses 0.5% of granted permissions",
+      "Can perform destructive actions (delete, terminate) but has never used them",
+      "Has full IAM management permissions but rarely accesses IAM",
+      "Multiple overlapping high-privilege policies (AdministratorAccess + PowerUserAccess)"
+    ],
+    "recommended_policies": [
+      {
+        "policy_type": "custom",
+        "policy_name": "AnikaLeastPrivilege",
+        "actions": [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:ListBucket",
+          "ec2:DescribeInstances",
+          "rds:DescribeDBInstances",
+          "iam:ListUsers",
+          "cloudwatch:GetMetricData"
+        ],
+        "resources": [
+          "arn:aws:s3:::user-data-*",
+          "arn:aws:ec2:*:123456789012:instance/*",
+          "arn:aws:rds:*:123456789012:db:*"
+        ],
+        "risk_reduction": 90
+      }
+    ]
+  },
+  "security_findings": [
+    {
+      "finding_id": "orca-iam-001",
+      "severity": "critical",
+      "title": "User has AdministratorAccess with no MFA",
+      "description": "Administrative user 'anika' can access console without MFA",
+      "recommendation": "Enable MFA immediately for this administrative account"
+    },
+    {
+      "finding_id": "orca-iam-002",
+      "severity": "high",
+      "title": "Access key over 90 days old",
+      "description": "Access key AKIAIOSFODNN7EXAMPLE is 245 days old",
+      "recommendation": "Rotate access key according to security policy"
+    },
+    {
+      "finding_id": "orca-iam-003",
+      "severity": "high",
+      "title": "Overprivileged identity - 99.5% unused permissions",
+      "description": "User has AdministratorAccess but only uses S3 and EC2 describe actions",
+      "recommendation": "Apply least-privilege policy based on actual usage"
+    },
+    {
+      "finding_id": "orca-iam-004",
+      "severity": "medium",
+      "title": "Inactive access key not deleted",
+      "description": "Access key AKIAI44QH8DHBEXAMPLE inactive for 225 days",
+      "recommendation": "Delete inactive access key"
+    },
+    {
+      "finding_id": "orca-iam-005",
+      "severity": "medium",
+      "title": "Password not rotated in 171 days",
+      "description": "Password age exceeds 90-day rotation policy",
+      "recommendation": "Enforce password rotation policy"
+    }
+  ],
+  "risk_indicators": {
+    "is_admin": true,
+    "no_mfa": true,
+    "old_credentials": true,
+    "overprivileged": true,
+    "unused_high_risk_permissions": true,
+    "cross_account_access": false,
+    "external_access": false
+  },
+  "activity_timeline": {
+    "recent_actions": [
+      {
+        "timestamp": "2026-04-22T16:45:00Z",
+        "action": "s3:PutObject",
+        "resource": "arn:aws:s3:::user-data-prod/reports/daily-2026-04-22.csv",
+        "source_ip": "203.0.113.88",
+        "user_agent": "aws-cli/2.9.19"
+      },
+      {
+        "timestamp": "2026-04-22T16:30:00Z",
+        "action": "s3:GetObject",
+        "resource": "arn:aws:s3:::user-data-prod/config/settings.json",
+        "source_ip": "203.0.113.88",
+        "user_agent": "aws-cli/2.9.19"
+      },
+      {
+        "timestamp": "2026-04-22T14:15:00Z",
+        "action": "ec2:DescribeInstances",
+        "resource": "*",
+        "source_ip": "203.0.113.88",
+        "user_agent": "console.aws.amazon.com"
+      },
+      {
+        "timestamp": "2026-04-22T09:20:00Z",
+        "action": "iam:ListUsers",
+        "resource": "*",
+        "source_ip": "203.0.113.88",
+        "user_agent": "console.aws.amazon.com"
+      }
+    ],
+    "suspicious_activity": []
+  },
+  "remediation_plan": {
+    "priority_1": {
+      "action": "Enable MFA",
+      "effort": "5 minutes",
+      "impact": "Prevents unauthorized console access"
+    },
+    "priority_2": {
+      "action": "Remove AdministratorAccess and PowerUserAccess policies",
+      "effort": "10 minutes",
+      "impact": "Reduces attack surface by 99.5%"
+    },
+    "priority_3": {
+      "action": "Apply least-privilege policy based on usage",
+      "effort": "30 minutes",
+      "impact": "Grants only needed S3 and EC2 describe permissions"
+    },
+    "priority_4": {
+      "action": "Rotate access key",
+      "effort": "15 minutes",
+      "impact": "Reduces risk of key compromise"
+    },
+    "priority_5": {
+      "action": "Delete inactive access key",
+      "effort": "2 minutes",
+      "impact": "Removes unused credential"
+    }
+  }
+}

@@ -1,0 +1,210 @@
+{
+  "framework": {
+    "name": "PCI DSS",
+    "version": "4.0",
+    "full_name": "Payment Card Industry Data Security Standard",
+    "last_scanned": "2026-04-23T06:00:00Z"
+  },
+  "overall_score": 78,
+  "score_change_7d": 5,
+  "total_controls": 58,
+  "passing": 42,
+  "failing": 12,
+  "not_applicable": 4,
+  "requirements": [
+    {
+      "requirement_id": "1",
+      "title": "Install and maintain network security controls",
+      "controls_passing": 8,
+      "controls_failing": 2,
+      "score": 80
+    },
+    {
+      "requirement_id": "2",
+      "title": "Apply secure configurations to all system components",
+      "controls_passing": 6,
+      "controls_failing": 1,
+      "score": 86
+    },
+    {
+      "requirement_id": "3",
+      "title": "Protect stored account data",
+      "controls_passing": 4,
+      "controls_failing": 3,
+      "score": 57
+    },
+    {
+      "requirement_id": "4",
+      "title": "Protect cardholder data with strong cryptography",
+      "controls_passing": 3,
+      "controls_failing": 2,
+      "score": 60
+    },
+    {
+      "requirement_id": "7",
+      "title": "Restrict access to system components and cardholder data",
+      "controls_passing": 7,
+      "controls_failing": 2,
+      "score": 78
+    },
+    {
+      "requirement_id": "8",
+      "title": "Identify users and authenticate access",
+      "controls_passing": 9,
+      "controls_failing": 1,
+      "score": 90
+    },
+    {
+      "requirement_id": "10",
+      "title": "Log and monitor all access to system components",
+      "controls_passing": 5,
+      "controls_failing": 1,
+      "score": 83
+    }
+  ],
+  "failing_controls": [
+    {
+      "control_id": "3.4.1",
+      "requirement": "3",
+      "title": "PAN is rendered unreadable anywhere it is stored",
+      "description": "Primary Account Number (PAN) must be encrypted at rest",
+      "severity": "critical",
+      "failing_assets": [
+        {
+          "asset_id": "550e8400-e29b-41d4-a716-446655440002",
+          "asset_name": "customer-db-prod",
+          "asset_type": "rds_instance",
+          "issue": "Database encryption not enabled",
+          "region": "us-east-1"
+        },
+        {
+          "asset_id": "550e8400-e29b-41d4-a716-446655440007",
+          "asset_name": "payment-data-archive",
+          "asset_type": "s3_bucket",
+          "issue": "S3 bucket default encryption not enabled",
+          "region": "us-west-2"
+        }
+      ],
+      "remediation": "Enable encryption at rest for all data stores containing PAN",
+      "estimated_effort_hours": 8
+    },
+    {
+      "control_id": "4.2.1",
+      "requirement": "4",
+      "title": "Strong cryptography and security protocols are implemented",
+      "description": "Ensure TLS 1.2 or higher is used for cardholder data transmission",
+      "severity": "high",
+      "failing_assets": [
+        {
+          "asset_id": "550e8400-e29b-41d4-a716-446655440008",
+          "asset_name": "payment-gateway-lb",
+          "asset_type": "load_balancer",
+          "issue": "TLS 1.0 and 1.1 still enabled",
+          "region": "us-east-1"
+        }
+      ],
+      "remediation": "Disable TLS 1.0 and 1.1, enforce TLS 1.2 minimum",
+      "estimated_effort_hours": 2
+    },
+    {
+      "control_id": "1.2.1",
+      "requirement": "1",
+      "title": "Configuration standards are defined and implemented",
+      "description": "Network security controls must be properly configured",
+      "severity": "high",
+      "failing_assets": [
+        {
+          "asset_id": "550e8400-e29b-41d4-a716-446655440009",
+          "asset_name": "cardholder-data-env-sg",
+          "asset_type": "security_group",
+          "issue": "Allows ingress from 0.0.0.0/0 on port 3306",
+          "region": "us-east-1"
+        }
+      ],
+      "remediation": "Restrict database security group to only allow known application servers",
+      "estimated_effort_hours": 1
+    },
+    {
+      "control_id": "7.2.1",
+      "requirement": "7",
+      "title": "Access is assigned based on job classification and function",
+      "description": "Implement role-based access control (RBAC)",
+      "severity": "medium",
+      "failing_assets": [
+        {
+          "asset_id": "550e8400-e29b-41d4-a716-446655440010",
+          "asset_name": "admin-role-full-access",
+          "asset_type": "iam_role",
+          "issue": "Role has AdministratorAccess policy attached",
+          "region": "global"
+        },
+        {
+          "asset_id": "550e8400-e29b-41d4-a716-446655440011",
+          "asset_name": "developer-role",
+          "asset_type": "iam_role",
+          "issue": "Overprivileged - can access cardholder data environment",
+          "region": "global"
+        }
+      ],
+      "remediation": "Implement least-privilege IAM policies based on job function",
+      "estimated_effort_hours": 16
+    },
+    {
+      "control_id": "10.2.1",
+      "requirement": "10",
+      "title": "Audit logs capture all individual user access",
+      "description": "All user access to cardholder data must be logged",
+      "severity": "medium",
+      "failing_assets": [
+        {
+          "asset_id": "550e8400-e29b-41d4-a716-446655440012",
+          "asset_name": "payment-processing-app",
+          "asset_type": "ec2_instance",
+          "issue": "Application logs not forwarded to centralized logging",
+          "region": "us-east-1"
+        }
+      ],
+      "remediation": "Configure CloudWatch agent to forward all access logs",
+      "estimated_effort_hours": 3
+    }
+  ],
+  "gap_analysis": {
+    "critical_gaps": 2,
+    "high_gaps": 4,
+    "medium_gaps": 6,
+    "low_gaps": 0,
+    "total_affected_assets": 23,
+    "estimated_remediation_hours": 47,
+    "estimated_cost_impact": "$12,500"
+  },
+  "trend": {
+    "score_7_days_ago": 73,
+    "score_30_days_ago": 68,
+    "score_90_days_ago": 62,
+    "improving": true,
+    "velocity": "+1.2 points per week"
+  },
+  "recommendations": [
+    {
+      "priority": 1,
+      "action": "Enable encryption for customer-db-prod and payment-data-archive",
+      "impact": "Addresses 2 critical control failures in Requirement 3",
+      "effort": "8 hours",
+      "controls_fixed": ["3.4.1"]
+    },
+    {
+      "priority": 2,
+      "action": "Restrict database security group to application tier only",
+      "impact": "Addresses network segmentation requirement",
+      "effort": "1 hour",
+      "controls_fixed": ["1.2.1"]
+    },
+    {
+      "priority": 3,
+      "action": "Review and right-size IAM permissions for all roles",
+      "impact": "Addresses access control requirements",
+      "effort": "16 hours",
+      "controls_fixed": ["7.2.1", "7.2.2"]
+    }
+  ]
+}

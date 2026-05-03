@@ -1,0 +1,21 @@
+{
+  "name": "orca-skills",
+  "version": "2.0.0",
+  "type": "module",
+  "description": "Skills and plugins to accelerate security workflows with the Orca Cloud Platform",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/orcasecurity/orca-skills.git"
+  },
+  "keywords": [
+    "security",
+    "orca",
+    "triage",
+    "alerts",
+    "soc",
+    "claude",
+    "skills"
+  ],
+  "author": "Orca Security",
+  "license": "MIT"
+}
