@@ -2,7 +2,7 @@
 
 <img src="assets/orca_skills_banner.png" alt="Orca Skills" width="700">
 
-<div style="margin-bottom: 20px;"></div>
+<div style="margin-bottom: 40px;"></div>
 
 <a href="LICENSE" target="_blank"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
 <a href="https://docs.anthropic.com/en/docs/claude-code" target="_blank"><img src="https://img.shields.io/badge/Claude_Code-compatible-blueviolet" alt="Claude Code"></a>
