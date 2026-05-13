@@ -1,7 +1,7 @@
 <div align="center">
 
 <p align="center">
-  <img src="assets/orca_skills_banner.png" alt="Orca Skills" width="700">
+  <img src="assets/orca_ai_skills_banner.png" alt="Orca Skills" width="700">
 </p>
 
 <a href="LICENSE" target="_blank"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
