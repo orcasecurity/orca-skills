@@ -64,7 +64,7 @@ The token is extracted from `.mcp.json` (`orca-security.headers.Authorization`).
 
 Parse user input to determine the source:
 
-- **Theme/Topic mode**: User provides a theme like "Supply Chain Security Controls" → search across multiple existing frameworks for relevant controls
+- **Theme/Topic mode**: User provides a theme (e.g., "Supply Chain Security", "Zero Trust", "Data Protection Baseline") → search across multiple existing frameworks for relevant controls
 - **From-framework mode**: User says "from:cis_docker_v.1.3.1" or "based on CIS Docker" → query that framework's controls and adapt/subset them
 - **Alert-list mode**: User provides alert IDs → query each alert and organize into controls/sections
 - **Hybrid mode**: User provides a theme + reference framework → combine both sources
@@ -79,7 +79,7 @@ discovery_search:
   search_phrase: "<theme> security alerts"
   limit: 10
 ```
-Run 5+ searches with different terms for maximum coverage (e.g., "container image security", "registry vulnerability", "supply chain CI/CD", "artifact integrity", "dependency scanning").
+Run 5+ searches with different angle terms simultaneously to maximize coverage. Vary the search terms across the theme's domains (infrastructure, IAM, data, network, logging).
 
 **Query 6: All enabled frameworks**
 ```
@@ -94,7 +94,7 @@ get_compliance_framework_control_tests:
   framework_id: <id>
 ```
 
-For example, for "Supply Chain Security", query: `cis_docker_v.1.3.1`, `cis_eks_1.5.0`, `stig_k8s`, `aws_foundational_security_best_practices`, `aws_cis_6.0.0`.
+Identify which existing frameworks are most relevant to the theme and pull their controls. For example, a container-focused theme would query `cis_docker_v.1.3.1` and `cis_eks_1.5.0`, while an IAM-focused theme would query `aws_cis_6.0.0` and `orca_best_practices_2.0.0`.
 
 #### From-Framework Mode — run in parallel:
 
@@ -121,18 +121,21 @@ get_enabled_compliance_frameworks → for cross-referencing
 
 #### Section Generation
 
-Group controls into logical sections using alert categories, asset types, and domain keywords. Adapt sections to the theme.
+Group controls into logical sections using alert categories, asset types, and domain keywords. Adapt sections to the user's theme — the section names, groupings, and keyword mappings should all reflect what the user asked for.
 
-**For Supply Chain themes:**
+**Default section taxonomy** (adapt based on theme):
 
-| Section | Keywords to match | Source frameworks |
-|---------|------------------|-------------------|
-| Container Image & Registry Security | image, registry, ECR, GCR, ACR, pull, insecure | cis_docker, cis_eks |
-| Container Runtime Protection | privileged, escalation, namespace, seccomp, runtime | cis_docker, cis_eks |
-| Kubernetes Admission & Policy | admission, RBAC, policy, namespace, service account | stig_k8s, cis_eks |
-| Secrets & Credential Management | secret, credential, key, token, rotation, CMK | aws_cis, cis_eks, aws_foundational |
-| Build Pipeline & Artifact Integrity | build, deploy, artifact, SSL, endpoint, access | aws_foundational, cis_eks |
-| Audit Logging & Monitoring | audit, log, monitor, CloudTrail, centralized | cis_docker, stig_k8s, cis_eks |
+| Section | Maps to Alert Categories | Example Controls |
+|---------|------------------------|------------------|
+| Identity & Access Management | IAM, permissions, roles, service accounts | Least-privilege, MFA enforcement, key rotation |
+| Compute Security | VMs, instances, containers, serverless | Instance hardening, patching, secure boot |
+| Network Security | VPC, firewalls, endpoints, load balancers | Network segmentation, TLS enforcement, ingress rules |
+| Data Protection | Storage, databases, encryption, secrets | Encryption at rest, key management, data classification |
+| Logging & Monitoring | Audit logs, alerts, metrics | Audit trail completeness, log retention |
+| Vulnerability Management | CVEs, packages, images | Patch management, image scanning, dependency updates |
+| Configuration Management | Misconfigurations, best practices | Secure defaults, hardened configurations |
+
+Use the alert `category`, `description`, and `asset_types` fields from control tests to assign each rule_id to the appropriate section. When the user's theme implies specialized sections (e.g., "Container Image Security" for supply chain, "Training Infrastructure" for AI/ML), create those instead of the generic defaults.
 
 ### Step 4: Present Framework Preview
 
@@ -152,19 +155,19 @@ ALWAYS show a preview before creating. Display the framework structure, control 
 
 ```json
 {
-  "name": "Supply Chain Security Controls",
-  "description": "Framework description...",
+  "name": "<framework_name>",
+  "description": "<framework_description>",
   "checkedKeys": [],
   "sections": [
     {
-      "name": "1. Container Image & Registry Security",
+      "name": "1. <Section Name>",
       "section_id_in_framework": "1",
       "tests": [
         {
-          "rule_id": "r40aa617ef4",
+          "rule_id": "<orca_rule_id>",
           "rule_id_in_framework": "1.1",
           "reference_id": "1.1",
-          "origin_framework_id": "cis_docker_v.1.3.1",
+          "origin_framework_id": "<source_framework_id>",
           "priority": "high"
         }
       ],
@@ -193,7 +196,7 @@ curl -X POST "https://api.orcasecurity.io/api/compliance/frameworks" \
   -d '<json_body>'
 ```
 
-**Response:** `{"data": {"id": 3104, "name": "Supply Chain Security Controls", ...}}`
+**Response:** `{"data": {"id": <framework_id>, "name": "<framework_name>", ...}}`
 
 #### Important Notes
 
@@ -244,7 +247,7 @@ You can fill this gap by creating a custom discovery alert:
     },
     "compliance_frameworks": [
       {
-        "compliance_framework": "Supply Chain Security Controls",
+        "compliance_framework": "<framework_name>",
         "category": "5. Build Pipeline & Artifact Integrity",
         "priority": "high"
       }
