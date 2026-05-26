@@ -282,6 +282,33 @@ Edge cases included:
 
 ---
 
+### `sample-orca-custom-framework.json`
+**What it represents:** Data for building a custom compliance framework from existing controls
+
+Used by: `orca-custom-framework` skill
+
+Structure:
+- Enabled frameworks list (5 frameworks with scores)
+- Framework controls grouped by section (5 sections, 12 rules total)
+- Each control has: rule_id, description, category, result, origin_framework_id, alert counts
+- Creation API response (framework ID 3104)
+- Post-creation score (28%)
+- Coverage gaps (5 gaps for custom alert suggestions)
+
+Edge cases included:
+- Mix of pass/fail controls
+- Controls from multiple source frameworks
+- Coverage gaps with no matching existing rules
+- Varying alert severity distributions per control
+
+**Key fabricated values:**
+- Framework ID: `3104`
+- Account ID: `123456789012`
+- All rule_ids reference real Orca rule ID format (`r` prefix + hex)
+- Score and asset counts are fabricated
+
+---
+
 ## How to Use in Tests
 
 ### Pattern Matching (Recommended)

@@ -410,6 +410,63 @@ tests:
           return hasMitre && (hasInitialAccess || hasDiscovery || hasCollection);
 
   #############################################################################
+  # SKILL: orca-custom-framework
+  #############################################################################
+  - description: "[orca-custom-framework] Count total controls across sections"
+    vars:
+      data: file://test-data/sample-orca-custom-framework.json
+      task: |
+        Count the total number of controls (rule_ids) across all sections in framework_controls.
+        Sections: container_image_registry (3), runtime_protection (3), k8s_admission_policy (2),
+        secrets_credentials (2), audit_logging (2). Total should be 12.
+    assert:
+      - type: javascript
+        value: |
+          // Should calculate 12 total controls
+          const hasTotal = output.includes('12') || output.includes('twelve');
+          return hasTotal;
+
+  - description: "[orca-custom-framework] Identify highest-risk section by failed assets"
+    vars:
+      data: file://test-data/sample-orca-custom-framework.json
+      task: |
+        Which section has the most failed assets? Sum failed_assets per section:
+        container_image_registry: 3+2+4=9, runtime_protection: 5+7+3=15,
+        k8s_admission_policy: 2+4=6, secrets_credentials: 6+2=8, audit_logging: 8+1=9.
+        Runtime protection has the most at 15.
+    assert:
+      - type: javascript
+        value: |
+          const lowerOutput = output.toLowerCase();
+          // Should identify runtime protection as highest risk
+          const hasRuntime = lowerOutput.includes('runtime');
+          // Should show 15 failed assets
+          const has15 = output.includes('15');
+          return hasRuntime && has15;
+
+  - description: "[orca-custom-framework] Detect coverage gaps and suggest custom alerts"
+    vars:
+      data: file://test-data/sample-orca-custom-framework.json
+      task: |
+        Review the coverage_gaps array. How many gaps exist? (5 gaps)
+        List them and suggest that custom discovery alerts should be created for each gap.
+    assert:
+      - type: javascript
+        value: |
+          const lowerOutput = output.toLowerCase();
+          // Should mention 5 gaps
+          const hasFive = output.includes('5') || output.includes('five');
+          // Should mention SBOM as a gap
+          const hasSbom = lowerOutput.includes('sbom');
+          // Should mention SLSA or signing/provenance
+          const hasSlsa = lowerOutput.includes('slsa') || lowerOutput.includes('signing') ||
+                         lowerOutput.includes('provenance');
+          // Should suggest custom alert creation
+          const hasCustomAlert = lowerOutput.includes('custom') &&
+                                (lowerOutput.includes('alert') || lowerOutput.includes('discovery'));
+          return hasFive && hasSbom && hasSlsa && hasCustomAlert;
+
+  #############################################################################
   # EDGE CASE TESTS
   #############################################################################
   - description: "[edge-case] Handle empty arrays gracefully"
