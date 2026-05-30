@@ -81,6 +81,21 @@ cp -r skills/* ~/.claude/skills/
 
 Add to your `.mcp.json` (in project root or `~/.claude/.mcp.json`):
 
+**Uses OAuth2 for authentication**
+
+```json
+{
+  "mcpServers": {
+    "orca-security": {
+      "type": "http",
+      "url": "https://mcp.orcasecurity.io"
+    }
+  }
+}
+```
+
+**For token based authentication** (For services and automations)
+
 ```json
 {
   "mcpServers": {
@@ -96,7 +111,7 @@ Add to your `.mcp.json` (in project root or `~/.claude/.mcp.json`):
 ```
 
 **Get your API token:** [Orca API Authentication Guide](https://docs.orcasecurity.io/docs/managing-api-tokens)  
-**MCP Integration Docs:** [Orca MCP Setup](https://docs.orcasecurity.io/docs/orca-security-mcp-server)
+**MCP Integration Docs:** [Orca MCP Setup](https://orca.security/mcp-server/)
 
 
 ## Skill Details
