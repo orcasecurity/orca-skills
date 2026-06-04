@@ -41,6 +41,7 @@
 | [`orca-identity-review`](#orca-identity-review) | "Is this identity overprivileged, and what's the blast radius?" |
 | [`orca-investigate`](#orca-investigate) | "What happened, who did it, and how far did they get?" |
 | [`orca-cloud-cost-optimizer`](#orca-cloud-cost-optimizer) | "Where are we overspending and what should we fix first?" |
+| [`orca-custom-framework`](#orca-custom-framework) | "How do I create a custom compliance framework tailored to my needs?" |
 
 ### Recommended Workflows
 
@@ -49,6 +50,8 @@
 > **Proactive posture:** Compliance gaps → Exposure map → Data exposure → Identity review
 >
 > **Incident response:** Investigate → Identity review → Asset profile → Contain and remediate
+>
+> **Custom compliance:** Custom framework → Compliance gaps → Impact analysis → Remediate
 
 ## Installation
 
@@ -943,6 +946,64 @@ Assets analyzed: 450 across 5 AWS accounts
 ```
 
 [Full Documentation →](skills/orca-cloud-cost-optimizer/)
+
+</details>
+
+<details>
+<summary><strong><a id="orca-custom-framework"></a>orca-custom-framework</strong></summary>
+
+**"How do I create a custom compliance framework tailored to my needs?"**
+
+Creates custom compliance frameworks in Orca Security from existing framework controls, alert lists, or security themes. Gathers relevant controls via MCP read tools, organizes them into logical sections, and pushes the framework to Orca via the REST API. When gaps exist — controls the user wants but Orca doesn't have a built-in rule for — suggests creating custom discovery alerts to fill them.
+
+**Features:**
+- 3 input modes: theme-based ("Supply Chain Security"), from-framework ("from:cis_docker"), or alert-list
+- Pulls controls from multiple existing frameworks and deduplicates rule_ids
+- Organizes into themed sections with priority weights (high/medium/low)
+- Creates frameworks via Orca REST API (`POST /api/compliance/frameworks`)
+- Identifies coverage gaps and suggests custom discovery alerts (`POST /api/sonar/rules`)
+- Post-creation validation with initial compliance score
+
+**Usage:**
+```bash
+/orca-custom-framework Supply Chain Security Controls
+/orca-custom-framework from:cis_docker_v.1.3.1
+/orca-custom-framework alerts:orca-1234,orca-5678
+
+# Or use natural language
+create a custom compliance framework for supply chain security
+build a framework based on CIS Docker + EKS controls
+generate a custom framework from these alerts
+```
+
+**Example output:**
+```
+=====================================================================
+CUSTOM FRAMEWORK CREATED
+=====================================================================
+
+  FRAMEWORK     Supply Chain Security Controls
+  ID            3104
+  CONTROLS      39 total across 6 sections
+  INITIAL SCORE 28%
+  CLOUD         aws, azure, gcp, shiftleft
+
+SECTIONS:
+  1. Container Image & Registry Security       6 controls
+  2. Container Runtime Protection              8 controls
+  3. Kubernetes Admission & Policy Controls    8 controls
+  4. Secrets & Credential Management           7 controls
+  5. Build Pipeline & Artifact Integrity       4 controls
+  6. Audit Logging & Monitoring                6 controls
+
+COVERAGE GAPS (suggest custom discovery alerts):
+  - SBOM generation and validation
+  - Container image signing (SLSA provenance)
+  - Dependency vulnerability scanning in CI/CD
+=====================================================================
+```
+
+[Full Documentation →](skills/orca-custom-framework/)
 
 </details>
 
