@@ -65,7 +65,7 @@ get_compliance_analysis_by_account_or_business_unit:
 
 ### Step 3: Deep-Dive into Target Framework(s)
 
-For the target framework (or the worst-scoring one if user said "all"), run in parallel:
+For the target framework (or the worst-scoring one if user said "all"), run Queries 5-8 in parallel. Query 6 depends on Query 5 (it needs the `rule_id`s), so run it after Query 5 returns.
 
 **Query 5: Failing control tests**
 ```
@@ -75,22 +75,32 @@ get_compliance_framework_control_tests:
     status: "fail"
 ```
 
-**Query 6: Framework stats**
+**Query 6: Compliant + non-compliant assets per failing control** (runs after Query 5)
+Scope to the top N failing controls (default N=5) to keep response sizes manageable. The `rule_id` comes from Query 5's `tests[].rule_id`.
+```
+get_control_test_assets:
+  framework_id: <id>
+  rule_id: <tests[].rule_id from Query 5>   # one call per top-N failing control
+```
+Returns `{ non_compliant_assets: [...], compliant_assets: [...] }` — both arrays, so true pass/fail ratios are computable per control, not just a failure count.
+
+**Query 7: Framework stats**
 ```
 get_compliance_framework_stats_for_asset:
   framework_id: <id>
 ```
 
-**Query 7: Assets with most failures**
+**Query 8: Assets with most failures**
 ```
 get_framework_assets_with_failed_controls_count:
   framework_id: <id>
 ```
 
-**Query 8: Account heatmap for this framework**
+**Query 9: Per-framework account breakdown**
 ```
-get_compliance_framework_account_heatmap:
-  framework_id: <id>
+get_compliance_analysis_by_account_or_business_unit:
+  group_by: "accounts"
+  framework_ids: ["<framework_id>"]
 ```
 
 ### Step 4: Analyze and Rank
@@ -98,7 +108,7 @@ get_compliance_framework_account_heatmap:
 #### Quick Win Detection
 
 A "quick win" is a failing control where:
-- Few assets are affected (< 5)
+- Few assets are affected — use the actual `non_compliant_assets.length` from Query 6 (`get_control_test_assets`), not a guess (treat < 5 as low)
 - The fix is a single configuration change (not architectural)
 - Fixing it passes the control completely (no partial pass)
 - The control appears in multiple frameworks (high ROI)
@@ -106,7 +116,8 @@ A "quick win" is a failing control where:
 #### Impact Ranking
 
 Rank failing controls by:
-1. **Cross-framework impact** — controls that fail in multiple frameworks get priority
+1. **Cross-framework impact** — for the top failing assets returned by Query 6 (`get_control_test_assets`), call `get_related_compliance_frameworks_for_asset` with the asset's `group_unique_id` as `asset_unique_id`. A control/asset participating in more frameworks gets priority.
+   - **HARD RULE: before counting frameworks per asset, filter `result[]` to entries where `active === true`.** The `result` array includes frameworks with `active: false` (frameworks that could apply to this asset type but aren't enabled in the tenant). Counting them inflates cross-framework impact with frameworks the customer hasn't enabled.
 2. **Asset count** — controls failing on many assets = systematic issue
 3. **Severity** — critical/high controls before medium/low
 4. **Fix complexity** — simple config changes before architectural changes
@@ -192,6 +203,10 @@ FRAMEWORK SCORES:
   <framework>                  <X>%     ↑ +N%    ✓ IMPROVING
   ...
 
+# Show the next line ONLY when fewer than 3 frameworks are enabled.
+# Source from get_recommended_compliance_frameworks_to_enable.
+Recommended additional frameworks (from connected providers <connected_providers>): <top 3 display_names>
+
 TOP FAILING CONTROLS (highest impact):
   [1] <control name> — failing on <N> assets, affects <M> frameworks
   [2] <control name> — failing on <N> assets, affects <M> frameworks
@@ -224,6 +239,10 @@ CRITICAL CONTROLS FAILING:
   <control-id>  <control name>
                 Assets failing: <N> | Frameworks: <list>
                 Fix: <1-line remediation summary>
+                Failing assets (from get_control_test_assets):
+                  - <name> (<type>) — <ui_url>
+                  - <name> (<type>) — <ui_url>
+                  ...
 
   <control-id>  <control name>
                 ...
@@ -233,6 +252,9 @@ HIGH CONTROLS FAILING:
 
 MEDIUM CONTROLS FAILING:
   ...
+
+(Rendering the real failing assets — name, type, ui_url — per control is what lets
+generated remediation code target actual resource IDs instead of a generic template.)
 
 FIX NOW:
   Pick any control and I'll generate the remediation code.
@@ -251,7 +273,12 @@ QUICK WINS — Highest ROI Fixes
 
   [1] <control name>
       Fix: <specific action>
-      Impact: passes control in <N> frameworks, <M> assets
+      Impact: passes control in these active frameworks: <active framework
+              display_names from get_related_compliance_frameworks_for_asset,
+              filtered to active === true>
+      Failing assets (from get_control_test_assets):
+        - <name> (<type>) — <ui_url>
+        - ...
       Score boost: ~<X>% across <frameworks>
       Effort: LOW (single config change)
 
@@ -371,18 +398,22 @@ Show all sections in order.
 ## Edge Cases
 
 ### No Compliance Frameworks Enabled
+
+Call `get_recommended_compliance_frameworks_to_enable` (no params) and render the tenant-aware
+recommendations from its response: `frameworks[].display_name` and `connected_providers`.
 ```
 ⚠ No compliance frameworks enabled in Orca.
 
 To get started, enable frameworks in:
   Orca Console → Compliance → Framework Settings
 
-Recommended starting set:
-  • CIS AWS/Azure/GCP Benchmarks
-  • SOC 2 Type II
-  • PCI DSS v4.0 (if processing payments)
-  • NIST 800-53 (government/regulated)
+Recommended for your connected providers (<connected_providers>):
+  • <frameworks[0].display_name>
+  • <frameworks[1].display_name>
+  • <frameworks[2].display_name>
+  ...
 ```
+If the tool returns an empty `frameworks` list, fall back to one line: "No tenant-specific recommendations available — enable a CIS Benchmark for your cloud provider to start."
 
 ### Framework Not Found
 ```
@@ -416,13 +447,16 @@ Recommendation: Set up alerts for score regression.
 | `get_compliance_framework_control_tests` | Failing controls per framework | `framework_id`, optional `filters` |
 | `get_compliance_framework_stats_for_asset` | Per-framework detailed stats | `framework_id` |
 | `get_framework_assets_with_failed_controls_count` | Worst assets per framework | `framework_id` |
-| `get_compliance_framework_account_heatmap` | Account-level framework scores | `framework_id` |
+| `get_control_test_assets` | Compliant + non-compliant assets for one control test | `framework_id`, `rule_id` |
+| `get_related_compliance_frameworks_for_asset` | All frameworks an asset participates in (active + inactive) | `asset_unique_id` (= `group_unique_id` from `get_control_test_assets`) |
+| `get_compliance_analysis_by_account_or_business_unit` | Per-account score per framework (heatmap replacement) | `group_by: "accounts"`, `framework_ids: ["<id>"]` |
 
 ### Secondary Tools
 
 | Tool | Purpose | When |
 |------|---------|------|
 | `get_control_test_alerts` | Alerts for a specific control | "controls" drill-down |
+| `get_recommended_compliance_frameworks_to_enable` | Tenant-aware framework recommendations | empty-state edge case + sparse-coverage dashboard hint |
 | `discovery_search` | Find assets related to a control failure | When investigating specific gaps |
 
 ### Parameter Notes
@@ -431,6 +465,10 @@ Recommendation: Set up alerts for score regression.
 - `filters` object can contain: `datetime_filter`, `providers`, `accounts`, `framework_ids`, `business_units`
 - `datetime_filter` values: 7, 14, 30 (days)
 - `group_by` is an enum: `"accounts"` or `"business_units"`
+- `framework_ids` on `get_compliance_analysis_by_account_or_business_unit` is **top-level, NOT under `filters`** — nesting it under `filters` is silently ignored or fails
+- `rule_id` (e.g. `rcad0b53623`) is the second key needed for `get_control_test_assets`, sourced from `get_compliance_framework_control_tests` → `tests[].rule_id`
+- `asset_unique_id` (e.g. `CodeRepository_<acct>_<resource>` or `vm_<acct>_<resource>`) for `get_related_compliance_frameworks_for_asset` is sourced from `get_control_test_assets` → `*_assets[].group_unique_id`
+- `get_related_compliance_frameworks_for_asset` returns inactive frameworks too — filter `active: true` before counting
 
 ## Implementation Notes
 
@@ -440,3 +478,13 @@ Recommendation: Set up alerts for score regression.
 4. **Account ownership** matters — the user needs to know WHO to assign the work to.
 5. **Link to other skills** — suggest `/orca-alert-triage` for individual alert deep-dives from failing controls, `/orca-impact-analysis` for fix impact.
 6. **Compliance tools are the most complete** in the Orca MCP — leverage all of them.
+7. **Avoid the redundant account round-trip** — `get_enabled_compliance_frameworks` already returns `top_accounts` and `stats.accounts.data` (per-account pass/fail counts across the framework). Only call `get_compliance_analysis_by_account_or_business_unit` when you need the per-account *score* per framework (e.g. the heatmap replacement in Query 9); otherwise prefer the inline data.
+
+### Response sizes are large — always scope first
+
+Every compliance tool can return tens to hundreds of KB. Without scoping, the skill will hit context limits before it can rank or render. Default scoping rules:
+
+- `get_compliance_framework_control_tests`: pass `filters.providers` and/or `filters.assets_categories` whenever the user query implies a scope (e.g. "PCI on AWS" → `providers: ["aws"]`).
+- `get_control_test_assets`: call only on the top-N failing controls (default N=5), never on every failing control by default.
+- `get_related_compliance_frameworks_for_asset`: call only on the top-N failing assets per control (default N=3), and de-duplicate by `group_unique_id` across controls.
+- `get_enabled_compliance_frameworks`: when answering a single-framework question, pass `filters.framework_ids: ["<id>"]` instead of fetching all.
