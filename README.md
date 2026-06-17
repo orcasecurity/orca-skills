@@ -42,6 +42,9 @@
 | [`orca-investigate`](#orca-investigate) | "What happened, who did it, and how far did they get?" |
 | [`orca-cloud-cost-optimizer`](#orca-cloud-cost-optimizer) | "Where are we overspending and what should we fix first?" |
 | [`orca-custom-framework`](#orca-custom-framework) | "How do I create a custom compliance framework tailored to my needs?" |
+| [`orca-supply-chain-exposure`](skills/orca-supply-chain-exposure/) | "From this list of suspect packages, which are we actually running and where?" |
+| [`orca-cve-blast-radius`](skills/orca-cve-blast-radius/) | "This CVE just dropped — which assets are actually at risk?" |
+| [`orca-account-health`](skills/orca-account-health/) | "Is every account connected, synced, and fully scanned?" |
 
 ### Recommended Workflows
 
@@ -52,6 +55,10 @@
 > **Incident response:** Investigate → Identity review → Asset profile → Contain and remediate
 >
 > **Custom compliance:** Custom framework → Compliance gaps → Impact analysis → Remediate
+>
+> **Reactive (advisory landed):** Supply chain exposure → CVE blast radius → Impact analysis → Fix
+>
+> **Pre-audit / pre-investigation:** Account health → Compliance gaps / Investigate (trust the data first)
 
 ## Installation
 
