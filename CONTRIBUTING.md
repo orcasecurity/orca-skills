@@ -22,7 +22,7 @@ If a skill produces unexpected output, fails to trigger, or behaves incorrectly:
    - The skill name (e.g., `orca-alert-triage`)
    - The exact prompt or input you used
    - What you expected vs. what you got
-   - Your Claude Code version (`claude --version`) and OS
+   - Your client and version (`claude --version` or `codex --version`) and OS
    - Any error output or unexpected MCP behavior
 
 > For security vulnerabilities, **do not open a public issue**. See [SECURITY.md](SECURITY.md).
@@ -43,24 +43,18 @@ This avoids wasted effort and keeps the repo focused.
 
 ## Development Setup
 
-**Prerequisites:** Node.js 20+, an Anthropic API key.
+**Prerequisites:** Node.js 20+.
 
 ```bash
 # 1. Fork and clone
 git clone https://github.com/<your-username>/orca-skills.git
 cd orca-skills
 
-# 2. Install the evaluation framework
-npm install -g promptfoo
-
-# 3. Set your API key
-export ANTHROPIC_API_KEY="your-key-here"
-
-# 4. Verify everything works
-promptfoo eval --no-progress-bar
+# 2. Verify repository packaging and docs
+npm test
 ```
 
-This runs the Layer 1 (CI) test suite using fabricated sample data from `test-data/` — no Orca account or live credentials required. See [EVALS.md](EVALS.md) for full details on the two-layer testing approach.
+This validates the Claude, Cursor, and Codex plugin manifests, confirms all 12 skill folders are present, and checks that the Codex plugin package stays synchronized with the root skill files.
 
 **Note:** `.mcp.json` is gitignored. Never commit API tokens or credentials.
 
@@ -75,11 +69,11 @@ This runs the Layer 1 (CI) test suite using fabricated sample data from `test-da
    git checkout -b docs/update-readme
    ```
 
-2. **Make your changes.** For new or modified skills, add or update test cases in `promptfooconfig.yaml` and sample data in `test-data/`.
+2. **Make your changes.** For new or modified skills, update both the root `skills/` tree and the Codex package under `plugins/orca-skills/skills/`. The validation command checks that these copies stay identical.
 
-3. **Run the test suite locally** before pushing:
+3. **Run repository validation locally** before pushing:
    ```bash
-   promptfoo eval --no-progress-bar
+   npm test
    ```
 
 4. **Keep PRs focused.** One bug fix or one new skill per PR. Do not bundle unrelated changes.
@@ -93,10 +87,10 @@ This runs the Layer 1 (CI) test suite using fabricated sample data from `test-da
 6. **PR description** must include:
    - What changed and why
    - A link to the related issue (if applicable)
-   - Confirmation that `promptfoo eval` passes locally
-   - For new skills: a brief Layer 2 validation note (did you test with a real Orca environment?)
+   - Confirmation that `npm test` passes locally
+   - For new skills: a brief validation note for Claude and/or Codex, including whether you tested with a real Orca environment
 
-7. **CI must pass.** GitHub Actions runs `promptfoo eval` on every PR targeting `main`. PRs with failing CI will not be reviewed.
+7. **Maintainer checks must pass.** Maintainers may run the documented Claude and Codex smoke tests before merging.
 
 8. **One approving review** from a maintainer is required to merge.
 
@@ -110,10 +104,10 @@ This runs the Layer 1 (CI) test suite using fabricated sample data from `test-da
 - Instructions should be written in clear, imperative language.
 - Each skill should do one thing well — avoid scope creep.
 
-**Test cases (`promptfooconfig.yaml`):**
-- Use `javascript` assertions to validate structure and calculations, not exact phrasing — exact string assertions are brittle.
-- All test data must be fabricated. No real account IDs, emails, alert IDs, or credentials in `test-data/`.
-- Include at least one edge case (empty array, missing field, null value).
+**Validation:**
+- Keep root skills and the Codex plugin copy synchronized.
+- Keep examples fabricated. Do not commit real account IDs, emails, alert IDs, or credentials.
+- For behavior changes, include a short manual validation note in the PR.
 
 **Markdown:**
 - ATX-style headings (`##`, not underlines).
