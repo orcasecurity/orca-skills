@@ -1,0 +1,20 @@
+{
+  "name": "orcasecurity",
+  "interface": {
+    "displayName": "Orca Security"
+  },
+  "plugins": [
+    {
+      "name": "orca-skills",
+      "source": {
+        "source": "local",
+        "path": "./plugins/orca-skills"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Security"
+    }
+  ]
+}

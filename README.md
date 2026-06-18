@@ -63,6 +63,15 @@
 
 **Next step:** Configure the Orca Security MCP server (see [MCP Configuration](#mcp-configuration) below).
 
+### Codex CLI
+
+```bash
+codex plugin marketplace add orcasecurity/orca-skills
+codex plugin add orca-skills --marketplace orcasecurity
+```
+
+**Next step:** Configure the Orca Security MCP server (see [MCP Configuration](#mcp-configuration) below).
+
 ### Claude Desktop
 
 Add the marketplace to your Claude Desktop configuration, then install skills from the marketplace UI.
@@ -76,11 +85,17 @@ cd orca-skills
 
 # Copy skills to your skills directory
 cp -r skills/* ~/.claude/skills/
+
+# Or install directly into Codex's default skills directory
+mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills"
+cp -r skills/* "${CODEX_HOME:-$HOME/.codex}/skills/"
 ```
 
 ## MCP Configuration
 
 **Required:** These skills need the Orca Security MCP server to access your environment data.
+
+### Claude Code / Claude Desktop
 
 Add to your `.mcp.json` (in project root or `~/.claude/.mcp.json`):
 
@@ -115,6 +130,44 @@ Add to your `.mcp.json` (in project root or `~/.claude/.mcp.json`):
 
 **Get your API token:** [Orca API Authentication Guide](https://docs.orcasecurity.io/docs/managing-api-tokens)  
 **MCP Integration Docs:** [Orca MCP Setup](https://orca.security/mcp-server/)
+
+### Codex CLI
+
+For OAuth2 authentication:
+
+```bash
+codex mcp add orca-security --url https://mcp.orcasecurity.io
+codex mcp login orca-security
+```
+
+For token based authentication, set the token in an environment variable and reference it from your Codex config:
+
+```bash
+export ORCA_AUTHORIZATION="Token YOUR_ORCA_API_TOKEN"
+```
+
+```toml
+[mcp_servers.orca-security]
+url = "https://api.orcasecurity.io/mcp"
+env_http_headers = { Authorization = "ORCA_AUTHORIZATION" }
+```
+
+Check the connection:
+
+```bash
+codex mcp list
+```
+
+## Usage Notes
+
+Claude examples use slash commands such as `/orca-alert-triage`. In Codex, invoke the same skills with natural language or an explicit namespaced skill mention after plugin install, for example:
+
+```text
+triage Orca alert orca-1234567
+$orca-skills:orca-morning-briefing what needs attention today?
+```
+
+If you manually copy the skill folders into Codex instead of installing the plugin, the standalone form such as `$orca-morning-briefing` may also be available.
 
 
 ## Skill Details
@@ -1010,36 +1063,37 @@ COVERAGE GAPS (suggest custom discovery alerts):
 
 ## Testing
 
-All skills include automated evaluations using [Promptfoo](https://www.promptfoo.dev/).
-
-### Run Tests Locally
+Run the repository packaging checks before publishing changes:
 
 ```bash
-# Install Promptfoo
-npm install -g promptfoo
-
-# Set your API key
-export ANTHROPIC_API_KEY="your-key"
-
-# Run all tests
-promptfoo eval
-
-# View results
-promptfoo view
+npm test
 ```
 
-See [EVALS.md](EVALS.md) for detailed testing guide, including:
-- Test coverage per skill
-- Adding new test cases
-- CI/CD integration
-- Debugging failed tests
+This validates the Claude, Cursor, and Codex plugin manifests, confirms all 12 skill folders are present, and checks that the README includes installation and MCP setup for both Claude and Codex.
 
-**Test suite includes ~30 test cases covering:**
-- Skill triggering from natural language
-- Output format validation
-- Error handling
-- Cross-model compatibility
-- Proactive remediation behavior
+### Codex Smoke Test
+
+Use a temporary Codex home to verify marketplace installation without changing your normal setup:
+
+```bash
+export CODEX_HOME="$(mktemp -d)"
+codex plugin marketplace add ./ --json
+codex plugin list --available --json
+codex plugin add orca-skills --marketplace orcasecurity --json
+codex debug prompt-input "triage Orca alert orca-1234567" | rg "orca-alert-triage"
+```
+
+### Claude Smoke Test
+
+After installing the marketplace in Claude Code, verify that the Orca MCP server is configured and trigger a skill with a sample prompt:
+
+```bash
+claude mcp list
+```
+
+```text
+/orca-alert-triage orca-1234567
+```
 
 ## Contributing
 
@@ -1048,8 +1102,8 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guid
 ### Adding a New Skill
 
 1. Create `skills/your-skill/SKILL.md`
-2. Follow the [skill template](docs/skill-template.md)
-3. Add tests if applicable
+2. Follow the structure used by the existing skills
+3. Add validation or evaluations if applicable
 4. Update this README
 5. Submit a pull request
 

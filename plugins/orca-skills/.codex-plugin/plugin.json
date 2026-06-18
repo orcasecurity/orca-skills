@@ -1,0 +1,51 @@
+{
+  "name": "orca-skills",
+  "version": "2.0.0",
+  "description": "Orca Security skills collection for cloud security workflows with the Orca Cloud Platform.",
+  "author": {
+    "name": "Orca Security",
+    "email": "support@orca.security",
+    "url": "https://orca.security"
+  },
+  "homepage": "https://github.com/orcasecurity/orca-skills",
+  "repository": "https://github.com/orcasecurity/orca-skills",
+  "license": "MIT",
+  "keywords": [
+    "security",
+    "orca",
+    "triage",
+    "alerts",
+    "soc",
+    "incident-response",
+    "cloud-security",
+    "compliance",
+    "identity",
+    "exposure",
+    "dspm",
+    "investigation",
+    "asset-profile",
+    "codex",
+    "claude",
+    "cursor",
+    "mcp"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Orca Security Skills",
+    "shortDescription": "Cloud security workflows powered by Orca MCP data.",
+    "longDescription": "Install Orca Security skills for alert triage, impact analysis, compliance gaps, exposure mapping, incident investigation, cloud cost optimization, and daily security briefings.",
+    "developerName": "Orca Security",
+    "category": "Security",
+    "capabilities": [
+      "Security Analysis",
+      "Cloud Security",
+      "MCP"
+    ],
+    "defaultPrompt": [
+      "Give me an Orca morning briefing.",
+      "Triage Orca alert orca-1234567.",
+      "Show my external exposure map."
+    ],
+    "brandColor": "#00D4AA"
+  }
+}

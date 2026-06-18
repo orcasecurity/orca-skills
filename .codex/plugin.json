@@ -1,14 +1,14 @@
 {
-  "name": "orca-triage",
-  "displayName": "Orca Security Alert Triage",
-  "description": "Triage Orca Security alerts with analyst-friendly formatting, timeline analysis, and progressive disclosure",
-  "version": "1.0.0",
+  "name": "orca-skills",
+  "displayName": "Orca Security Skills",
+  "description": "Skills and plugins to accelerate security workflows with the Orca Cloud Platform",
+  "version": "2.0.0",
   "author": {
     "name": "Orca Security",
     "email": "support@orca.security"
   },
-  "homepage": "https://github.com/orca-security/orca-triage-skill",
-  "repository": "https://github.com/orca-security/orca-triage-skill",
+  "homepage": "https://github.com/orcasecurity/orca-skills",
+  "repository": "https://github.com/orcasecurity/orca-skills",
   "license": "MIT",
   "keywords": [
     "security",
@@ -17,7 +17,18 @@
     "alerts",
     "soc",
     "incident-response",
-    "threat-intelligence"
+    "threat-intelligence",
+    "cloud-security",
+    "compliance",
+    "identity",
+    "exposure",
+    "dspm",
+    "investigation",
+    "asset-profile",
+    "codex",
+    "claude",
+    "cursor",
+    "mcp"
   ],
   "skills": "./skills/",
   "mcp_required": [

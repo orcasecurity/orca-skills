@@ -3,6 +3,9 @@
   "version": "2.0.0",
   "type": "module",
   "description": "Skills and plugins to accelerate security workflows with the Orca Cloud Platform",
+  "scripts": {
+    "test": "node scripts/validate-packaging.mjs"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/orcasecurity/orca-skills.git"
@@ -14,6 +17,11 @@
     "alerts",
     "soc",
     "claude",
+    "codex",
+    "cursor",
+    "mcp",
+    "cloud-security",
+    "compliance",
     "skills"
   ],
   "author": "Orca Security",
