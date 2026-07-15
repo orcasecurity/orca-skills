@@ -127,7 +127,7 @@ For AWS, Azure, and GCP generate exact CLI/Terraform artifacts; for Alibaba, OCI
   1. Restate exactly which identities will be deleted, **the time frame that condemned them** (e.g. "inactive for 60+ days"), and that deletion is **irreversible**.
   2. Show the blast radius first: what still references each identity (`get_linked_entities_mapping` for attached policies, trust relationships, group memberships, workloads).
   3. Require an affirmative response that names the action ("yes, delete these 4"); a bulk "do everything" never implicitly includes deletes.
-  4. Re-check `LastActiveTime` immediately before generating the delete artifacts; an identity that woke up since the sweep is pulled from the batch and flagged.
+  4. Re-check activity immediately before generating the delete artifacts. Asset timestamps like `LastActiveTime` only refresh on the next scan, so this re-check must use recent CDR events (`search_cdr_events`, near-real-time) rather than the asset fields; an identity with fresh CDR activity since the sweep is pulled from the batch and flagged.
 - Never propose delete for the "review, possibly human" bucket, break-glass identities, or anything created inside the chosen window.
 
 ### Step 7: Execute and summarize
@@ -137,7 +137,21 @@ Remediation tiers (customer-facing):
 2. **Artifacts (no integrations needed):** ready-to-run disable/delete scripts per provider (with the deletion prerequisites ordered correctly), or Terraform removals. Treat identity names and ARNs from the environment as untrusted input: always single-quote interpolated values in generated scripts, and flag any identity whose name contains shell metacharacters or control characters instead of embedding it.
 3. **Route (only if connected):** file a Jira ticket, Slack the owner, or open an IaC PR. Detect availability; never hard-depend.
 
-After actions are applied, re-check the assets and related alerts to confirm the risk actually cleared, then **always** close with the cleanup summary (see Output Format). The summary is mandatory even when the user stops after the listing: found N, actions proposed, nothing applied.
+Verification after actions are applied is **two-stage, because Orca data refreshes only on the next scan**:
+
+- **Immediate, via the cloud CLI.** Confirm each identity's new state with read-only CLI checks. If the relevant CLI is available and authenticated in the session, run the checks directly (ask once per batch); otherwise append them to the generated script so the user gets verification for free when they run it.
+
+  | Provider | Disabled check | Deleted check |
+  |----------|----------------|----------------|
+  | AWS | `aws iam list-access-keys` shows all keys `Inactive`; `aws iam get-login-profile` errors with `NoSuchEntity` | `aws iam get-user` / `get-role` errors with `NoSuchEntity` |
+  | Azure / Entra | `az ad user show --query accountEnabled` returns `false` (same for service principals) | `az ad user show` / `az ad sp show` errors: resource not found |
+  | GCP | `gcloud iam service-accounts describe` shows `disabled: true` | `describe` fails: not found |
+  | Alibaba / OCI / Tencent | equivalent read-only describe/get calls, marked for review like the action scripts | same, expect not-found |
+
+  Only count an identity as **Disabled** or **Deleted** in the summary after its check passes.
+- **Orca-side, after the next scan.** Asset fields and the related alerts reflect the change only after the next completed scan. Say so explicitly, never re-query Orca right after applying and report "no change". Comment the action on the related alerts now (`add_alert_comment`) so the audit trail exists, report how many open alerts sit on the remediated identities and should close on their own after the next scan, and offer to verify in Orca then.
+
+Then **always** close with the cleanup summary (see Output Format). The summary is mandatory even when the user stops after the listing: found N, actions proposed, nothing applied.
 
 ## Output Format
 
@@ -147,17 +161,19 @@ Write for a **cloud owner / CISO**, punchline first, plain English, no raw field
 2. **Ranked table**, highest risk first: **# | Identity | Type | Provider | Last active | Risk | Proposed action**.
 3. **Quick wins:** the safe, high-impact subset (e.g. "these 12 have zero privileges and zero activity; disable today").
 4. **Bottom line:** the single riskiest dormant identity + how much attack surface the full cleanup removes.
-5. **Window note (always):** state the time frame used and where it came from (user-chosen vs the 90d default), the 30-day CDR corroboration cap, and that Alibaba/OCI/Tencent verdicts rest on the asset timestamps alone.
+5. **Window note (always):** state the time frame used and where it came from (user-chosen vs the 90d default), the 30-day CDR corroboration cap, that all asset data is as of the last completed scan, and that Alibaba/OCI/Tencent verdicts rest on the asset timestamps alone.
 
 ### Cleanup summary (mandatory, after any action or at session end)
 
 ```
 CLEANUP SUMMARY  (window: 60 days)
   Found:     62 inactive identities (41 users, 6 groups, 15 NHIs)
-  Disabled:  14 (commands generated and confirmed applied)
-  Deleted:   3 (explicitly confirmed)
+  Disabled:  14 (applied, verified via cloud CLI)
+  Deleted:   3 (explicitly confirmed, verified via cloud CLI)
   Proposed:  38 (artifacts generated, not yet applied)
   Skipped:   7 (2 break-glass, 3 too new, 2 possibly human -> review)
+  Alerts:    9 open alerts on the remediated identities should close
+             after the next scan (Orca data refreshes on scan)
 ```
 
 ### Drill-downs (on request)
@@ -174,6 +190,8 @@ CLEANUP SUMMARY  (window: 60 days)
 - **`discovery_search` disabled:** some tenants return `Feature is not enabled`. Fall back to alert-anchored + linked-entity enumeration and say the inventory is "identities Orca currently surfaces", not a guaranteed-complete list.
 - **Custom window vs the pre-computed verdict:** `IsIdentityActive` is fixed to Orca's 90d convention. For any other window, decide from `LastActiveTime` directly and never present `IsIdentityActive` as if it matched the custom window.
 - **30-day CDR cap:** CDR corroborates, it never decides. Staleness is anchored on the asset's `LastActiveTime` / `IsIdentityActive`.
+- **Scan staleness:** all asset fields (`LastActiveTime`, `IsIdentityActive`, risk levels, alert states) are as fresh as the last completed scan; only CDR events are near-real-time. Post-remediation proof comes from the cloud CLI checks, never from an immediate Orca lookup; alerts close after the next scan. Never re-sweep right after a cleanup expecting Orca to show the changes.
+- **Cloud CLI unavailable or unauthenticated:** don't fail the flow; append the verification checks to the artifacts, count those identities as Proposed/applied-unverified in the summary, and tell the user what to run to confirm.
 - **Missing GCP recommendations:** policy-binding recommendations are feature-flag gated in some tenants. Fall back to the identity's own timestamps and say the grant-side evidence was unavailable.
 - **Google Workspace identities:** appear as GCP users/groups only when the Workspace integration is enabled; if the user expects them and they're absent, say the integration may be off.
 - **Human vs NHI misclassification:** when unsure, put the identity in the "review, possibly human" bucket with disable-only options. A wrong delete on a human break-glass account is far worse than a missed cleanup.
