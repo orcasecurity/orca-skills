@@ -127,7 +127,6 @@ For AWS, Azure, and GCP generate exact CLI/Terraform artifacts; for Alibaba, OCI
   1. Restate exactly which identities will be deleted, **the time frame that condemned them** (e.g. "inactive for 60+ days"), and that deletion is **irreversible**.
   2. Show the blast radius first: what still references each identity (`get_linked_entities_mapping` for attached policies, trust relationships, group memberships, workloads).
   3. Require an affirmative response that names the action ("yes, delete these 4"); a bulk "do everything" never implicitly includes deletes.
-  4. Re-check activity immediately before generating the delete artifacts. Asset timestamps like `LastActiveTime` only refresh on the next scan, so this re-check must use recent CDR events (`search_cdr_events`, near-real-time) rather than the asset fields; an identity with fresh CDR activity since the sweep is pulled from the batch and flagged.
 - Never propose delete for the "review, possibly human" bucket, break-glass identities, or anything created inside the chosen window.
 
 ### Step 7: Execute and summarize
@@ -208,7 +207,7 @@ CLEANUP SUMMARY  (window: 60 days)
 | `discovery_search` | Primary enumeration: users / groups / NHIs with `IsIdentityActive = false` across all six providers (if enabled) |
 | `get_alerts_with_similar_alert_type` | Fallback enumeration via inactive-identity / unused-credential alerts |
 | `get_asset_by_name` / `get_asset_by_id` | Resolve each identity; read `LastActiveTime`, `IsIdentityActive`, key last-used fields, `RiskLevel`; Azure role-assignment `Recommendation`; GCP `GcpIamPolicyBindingRecommendation` |
-| `get_cdr_events_grouped_by_event_name` / `search_cdr_events` | Corroborate inactivity (30-day cap) and re-check before deletes |
+| `get_cdr_events_grouped_by_event_name` / `search_cdr_events` | Corroborate inactivity (30-day cap) |
 | `get_asset_alerts_count_grouped_by_risk_level` / `get_asset_related_alerts_summary` | Risk-score ranking inputs |
 | `get_other_secret_occurrences` | Bump identities whose credentials are exposed in code/images |
 | `get_asset_crown_jewel_info` | Bump identities that can reach sensitive assets |
