@@ -1008,6 +1008,7 @@ COVERAGE GAPS (suggest custom discovery alerts):
 
 </details>
 
+
 <details>
 <summary><strong><a id="orca-inactive-identities-cleanup"></a>orca-inactive-identities-cleanup</strong></summary>
 
@@ -1035,6 +1036,7 @@ Sweeps an account or business unit for inactive identities (users, groups, and n
 # Custom time frame, scope, or action
 /orca-inactive-identities-cleanup 123456789012 --inactive 60d
 /orca-inactive-identities-cleanup 123456789012 --only nhis
+/orca-inactive-identities-cleanup 123456789012 --action disable
 
 # Or use natural language
 clean up inactive identities in acme-production
@@ -1071,7 +1073,7 @@ TOP RISK (highest first):
 QUICK WINS: 12 identities with zero privileges and zero activity.
 
 CLEANUP SUMMARY  (window: 60 days)
-  Found:     62 | Disabled: 0 | Deleted: 0 | Proposed: 62 | Skipped: 7
+  Found:     62 | Disabled: 0 | Deleted: 0 | Proposed: 55 | Skipped: 7
 ═══════════════════════════════════════════════════════════════════
 ```
 

@@ -1,6 +1,6 @@
 ---
 name: orca-inactive-identities-cleanup
-description: Inactive-identity cleanup - finds inactive identities (users, groups, and non-human identities) across an account or business unit in every cloud provider Orca supports (AWS, Azure incl. Entra ID, GCP incl. Google Workspace, Alibaba Cloud, OCI, Tencent Cloud), ranks them by identity risk score (highest risk first), and drives remediation through a non-destructive path (disable) or a destructive path (delete) that always requires explicit confirmation. Asks for the inactivity time frame (e.g. last 60 days) when the user hasn't given one. Use when the user wants to clean up inactive or dormant identities, offboard unused users or service accounts, delete stale groups, or shrink the identity attack surface.
+description: Inactive-identity cleanup - finds inactive identities (users, groups, and non-human identities) across an account or business unit in every cloud provider Orca supports (AWS, Azure incl. Entra ID, GCP incl. Google Workspace, Alibaba Cloud, OCI, Tencent Cloud), ranks them by identity risk score (highest risk first), and drives remediation through a non-destructive path (disable) or a destructive path (delete) that always requires explicit confirmation. Asks for the inactivity time frame (e.g. last 60 days) when the user hasn't given one. Use when the user wants to clean up inactive or dormant identities, offboard unused users or service accounts, delete stale groups, or shrink the identity attack surface (e.g. "clean up inactive identities", "find dormant users", "disable unused service accounts").
 trigger: When the user asks to "clean up inactive identities", "find dormant users", "which identities are unused", "delete stale accounts", "disable inactive service accounts", "remove identities nobody uses", "identity cleanup", "offboard stale identities", or passes an account / business unit for an inactive-identity sweep.
 ---
 
@@ -91,7 +91,7 @@ Corroboration on top, where available:
 Exclusions applied automatically:
 - **Too new to judge:** identities created inside the chosen window are skipped (a two-week-old identity with no activity is new, not dead).
 - **Possibly human, unclear:** listed under "review" with disable-only options, never proposed for delete.
-- **Break-glass / DR identities:** dormant by design; flagged but exempt from delete, with a pointer to `orca-ciem-jit-candidates` for converting them to JIT instead.
+- **Break-glass / DR identities:** dormant by design; flagged but exempt from delete. Recommend converting them to just-in-time (time-bound, on-request) access instead, so the capability stays available without the standing risk.
 - **No activity fields:** some inventory-only identity types (e.g. Linode, Anthropic, Vercel users) carry no activity data; list them only on request and mark them "no inactivity signal available", never auto-propose action.
 
 ### Step 4: Rank by identity risk score
@@ -102,7 +102,7 @@ Per acceptance: **highest risk first**. For each inactive identity read the risk
 
 ### Step 5: Propose the action plan
 
-Default recommendation is **disable first, delete after a grace period** (suggest 30 days disabled with no complaints, then delete). Present the ranked list with a proposed action per identity; the user can accept, override per identity, or act in bulk ("disable all", "delete 2, 5, 7").
+Default recommendation is **disable first, delete after a grace period** (suggest 30 days disabled with no complaints, then delete). Present the ranked list with a proposed action per identity; the user can accept, override per identity, or act in bulk ("disable all", "delete 2, 5, 7"). If `--action` was given, pre-fill that action for every eligible identity instead of the per-identity default; `--action delete` still passes the confirmation gate in Step 6, and excluded buckets (break-glass, possibly human, too new) stay disable-only regardless.
 
 | Provider | Identity type | Disable (non-destructive, reversible) | Delete (destructive, irreversible) |
 |----------|---------------|----------------------------------------|-------------------------------------|
@@ -199,6 +199,7 @@ CLEANUP SUMMARY  (window: 60 days)
 
 ### Parameter notes
 - Time frame: default **90 days** (Orca's built-in `IsIdentityActive` convention); when the user picks another window, compare `LastActiveTime` directly. CDR corroboration is capped at 30 days by the MCP.
+- `--only users|groups|nhis` re-scopes the sweep to one bucket. `--action disable|delete` pre-selects the proposed action for every eligible identity (Step 5); `--action delete` never skips the Step 6 confirmation gate.
 - Resolve `model_type` from a real asset lookup; don't pass guessed model names (MCP-reported types can differ from internal model names, e.g. `AwsRole` vs `AwsIamRole`).
 
 ## Implementation Notes
@@ -209,4 +210,4 @@ CLEANUP SUMMARY  (window: 60 days)
 4. **The confirmation gate is non-negotiable.** No phrasing of the request ("just delete everything unused") skips step 6; restate, show blast radius, get the explicit yes.
 5. **The cleanup summary is mandatory** on every run, including read-only ones; "found and proposed, nothing applied" is a valid summary.
 6. **Provider coverage is a product fact, not a guess:** AWS, Azure (incl. Entra ID), GCP (incl. Google Workspace), Alibaba Cloud, OCI, and Tencent Cloud all carry the shared 90-day activity verdict; treat a provider outside this set as unsupported and say so instead of improvising.
-7. **Stay in scope, link onward:** over-privilege right-sizing belongs to `orca-ciem-safe-rollout` / `orca-ciem-jit-candidates` (and `/orca-identity-review` for a single-identity deep dive); deep NHI hygiene (key rotation, OWASP NHI Top 10) belongs to `orca-ciem-nhi-audit`. This skill sweeps breadth: find the dead weight, disable or delete it, report what changed.
+7. **Stay in scope, link onward:** over-privilege right-sizing and least-privilege policy work are separate flows (use `/orca-identity-review` for a single-identity permission deep dive); deep NHI hygiene (key rotation, OWASP NHI Top 10 scoring) is out of scope too. This skill sweeps breadth: find the dead weight, disable or delete it, report what changed.
