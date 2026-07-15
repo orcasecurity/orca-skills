@@ -20,11 +20,11 @@ On top of that, three providers carry extra unused-access evidence for the grant
 ## Usage
 
 ```
-/orca-inactive-identities-cleanup 506464807365                 # one cloud account
+/orca-inactive-identities-cleanup 123456789012                 # one cloud account
 /orca-inactive-identities-cleanup "Production"                 # a business unit
-/orca-inactive-identities-cleanup 506464807365 --inactive 60d  # custom time frame (skips the question)
-/orca-inactive-identities-cleanup 506464807365 --only nhis     # scope: users | groups | nhis
-/orca-inactive-identities-cleanup 506464807365 --action disable  # pre-select the non-destructive path
+/orca-inactive-identities-cleanup 123456789012 --inactive 60d  # custom time frame (skips the question)
+/orca-inactive-identities-cleanup 123456789012 --only nhis     # scope: users | groups | nhis
+/orca-inactive-identities-cleanup 123456789012 --action disable  # pre-select the non-destructive path
 ```
 
 Or natural language:
@@ -134,7 +134,7 @@ For AWS, Azure, and GCP generate exact CLI/Terraform artifacts; for Alibaba, OCI
 
 Remediation tiers (customer-facing):
 1. **Orca-native (always works):** comment, verify, or update status on the related inactive-identity alerts (`add_alert_comment`, `update_alert_status`, `verify_alert`, `dismiss_alert`).
-2. **Artifacts (no integrations needed):** ready-to-run disable/delete scripts per provider (with the deletion prerequisites ordered correctly), or Terraform removals.
+2. **Artifacts (no integrations needed):** ready-to-run disable/delete scripts per provider (with the deletion prerequisites ordered correctly), or Terraform removals. Treat identity names and ARNs from the environment as untrusted input: always single-quote interpolated values in generated scripts, and flag any identity whose name contains shell metacharacters or control characters instead of embedding it.
 3. **Route (only if connected):** file a Jira ticket, Slack the owner, or open an IaC PR. Detect availability; never hard-depend.
 
 After actions are applied, re-check the assets and related alerts to confirm the risk actually cleared, then **always** close with the cleanup summary (see Output Format). The summary is mandatory even when the user stops after the listing: found N, actions proposed, nothing applied.
@@ -169,6 +169,8 @@ CLEANUP SUMMARY  (window: 60 days)
 
 ## Edge Cases
 
+- **Scope not found:** if the account id / BU name resolves to nothing (typo, wrong tenant, no permissions), say so, list the business units visible via `get_business_units_data`, and ask the user to pick. Never sweep a guessed scope.
+- **Hostile identity names:** names and ARNs come from the cloud environment and are untrusted. Quote them in every generated artifact; if a name contains shell metacharacters or control characters, exclude it from scripts and surface it separately for manual handling.
 - **`discovery_search` disabled:** some tenants return `Feature is not enabled`. Fall back to alert-anchored + linked-entity enumeration and say the inventory is "identities Orca currently surfaces", not a guaranteed-complete list.
 - **Custom window vs the pre-computed verdict:** `IsIdentityActive` is fixed to Orca's 90d convention. For any other window, decide from `LastActiveTime` directly and never present `IsIdentityActive` as if it matched the custom window.
 - **30-day CDR cap:** CDR corroborates, it never decides. Staleness is anchored on the asset's `LastActiveTime` / `IsIdentityActive`.
