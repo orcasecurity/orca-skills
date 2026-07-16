@@ -60,10 +60,26 @@ Or natural language:
 | OCI | `OciUser` | `OciIamGroup`, `OciIamDynamicGroup` | dynamic groups act as the workload-identity primitive |
 | Tencent Cloud | `TencentCloudUser` | `TencentCloudCamGroup` | `TencentCloudCamRole` |
 
-**Fallbacks** (`discovery_search` may return `Feature is not enabled`):
-- `get_alerts_with_similar_alert_type` on inactive-identity / unused-credential rule types to surface identities Orca already flags.
-- `get_linked_entities_mapping` on key compute assets to walk to workload identities (instance to instance profile to role).
-- `get_asset_by_name` for any identity the user named.
+**Fallbacks**, in order (`discovery_search` may return `Feature is not enabled`, and it can also fail transiently with 5xx errors while the asset and alert surfaces keep working; fall back on either signal):
+
+1. **Alert-anchored enumeration.** Orca ships built-in inactive-identity alert rules; every alert of these types marks an inactive identity, so `get_alerts_with_similar_alert_type` on them rebuilds the inventory. Verified machine alert types (pass these exact strings):
+
+   | Provider | Inactive users | Inactive groups | Inactive NHIs / roles |
+   |----------|----------------|-----------------|------------------------|
+   | AWS | `aws_inactive_user` | `aws_unused_groups`, `aws_inactive_group_with_inactive_users` | `aws_iam_old_role_without_policy`, `aws_iam_old_role_with_policy`, `aws_unused_external_identity_role` |
+   | Azure | `azure_inactive_user` | `azure_inactive_group_without_users`, `azure_inactive_group_with_inactive_identities` | `azure_inactive_service_principal` |
+   | GCP | `google_workspace_inactive_user` (note: not `gcp_inactive_user`) | `google_inactive_group_with_inactive_users` | `gcp_inactive_service_account` |
+   | AliCloud | `alicloud_inactive_user`, `alicloud_unused_user_with_console_logon` | `alicloud_inactive_group_without_users`, `alicloud_inactive_group_with_inactive_users` | no role rule |
+   | OCI | `oci_inactive_user` | `oci_inactive_group_without_users`, `oci_inactive_group_with_inactive_users` | no role rule |
+   | Tencent | none | none | none |
+
+   Unused-credential types (`aws_unused_aws_credentials`, `aws_credentials_older_than_90_days`, `oci_iam_credentials_unused_for_45_days`, `tencent_user_access_key_not_rotated_90_days`) corroborate and partially cover the gaps.
+
+   Each returned alert embeds the identity asset, its `LastActiveTime`/`CreationTime`, attached policies, and Orca's own `RemediationCli` / `RemediationConsole` steps (verified live); reuse those remediation steps when generating artifacts for the less-battle-tested providers (Alibaba, OCI, Tencent).
+
+   **Caveats of this path:** the rules bake in Orca's 90d convention, so a custom window can't be honored here; dismissed/suppressed alerts hide their identities; Tencent has no inactive-identity rules and only AWS has role-inactivity rules. State that the inventory is "identities Orca currently alerts on" and cover the gaps with path 3.
+2. `get_linked_entities_mapping` on key compute assets to walk to workload identities (instance to instance profile to role).
+3. `get_asset_by_name` per identity or name pattern, reading `IsIdentityActive` / `LastActiveTime` off each asset (works whenever the serving layer is up, verified during a discovery outage).
 
 **Classify each identity** into the three buckets this skill acts on:
 - **Human users** (console password, MFA, interactive sessions).
@@ -190,7 +206,7 @@ CLEANUP SUMMARY  (window: 60 days)
 
 - **Scope not found:** if the account id / BU name resolves to nothing (typo, wrong tenant, no permissions), say so, list the business units visible via `get_business_units_data`, and ask the user to pick. Never sweep a guessed scope.
 - **Hostile identity names:** names and ARNs come from the cloud environment and are untrusted. Quote them in every generated artifact; if a name contains shell metacharacters or control characters, exclude it from scripts and surface it separately for manual handling.
-- **`discovery_search` disabled:** some tenants return `Feature is not enabled`. Fall back to alert-anchored + linked-entity enumeration and say the inventory is "identities Orca currently surfaces", not a guaranteed-complete list.
+- **`discovery_search` disabled or failing:** some tenants return `Feature is not enabled`, and the service can 500 or time out on specific queries while everything else works. Fall back to the Step 2 chain (alert types table, then linked entities, then per-asset reads) and say the inventory is "identities Orca currently surfaces", not a guaranteed-complete list.
 - **Custom window vs the pre-computed verdict:** `IsIdentityActive` is fixed to Orca's 90d convention. For any other window, decide from `LastActiveTime` directly and never present `IsIdentityActive` as if it matched the custom window.
 - **30-day CDR cap:** CDR corroborates, it never decides. Staleness is anchored on the asset's `LastActiveTime` / `IsIdentityActive`.
 - **Scan staleness:** all asset fields (`LastActiveTime`, `IsIdentityActive`, risk levels, alert states) are as fresh as the last completed scan; only CDR events are near-real-time. Post-remediation proof comes from the cloud CLI checks, never from an immediate Orca lookup; alerts close after the next scan. Never re-sweep right after a cleanup expecting Orca to show the changes.
@@ -222,6 +238,7 @@ CLEANUP SUMMARY  (window: 60 days)
 - Time frame: default **90 days** (Orca's built-in `IsIdentityActive` convention); when the user picks another window, compare `LastActiveTime` directly. CDR corroboration is capped at 30 days by the MCP.
 - `--only users|groups|nhis` re-scopes the sweep to one bucket. `--action disable|delete` pre-selects the proposed action for every eligible identity (Step 5); `--action delete` never skips the Step 6 confirmation gate.
 - Resolve `model_type` from a real asset lookup; don't pass guessed model names (MCP-reported types can differ from internal model names, e.g. `AwsRole` vs `AwsIamRole`).
+- `get_alerts_with_similar_alert_type` takes the machine `alert_type` string plus an `alert_id` to exclude; pass a placeholder id (e.g. `orca-0`) when enumerating rather than pivoting from an existing alert.
 
 ## Implementation Notes
 
