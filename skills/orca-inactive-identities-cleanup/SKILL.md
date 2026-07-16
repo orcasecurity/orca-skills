@@ -116,9 +116,16 @@ Exclusions applied automatically:
 
 ### Step 4: Rank by identity risk score
 
-Per acceptance: **highest risk first**. For each inactive identity read the risk signals off the asset (`get_asset_by_id`):
-- The asset's **Orca risk score / `RiskLevel`** is the primary sort key.
-- **Bumps:** privileged or admin holdings while dormant (the classic takeover target), credentials found in code or images (`get_other_secret_occurrences`), crown-jewel reach (`get_asset_crown_jewel_info`), open alert pressure (`get_asset_alerts_count_grouped_by_risk_level`).
+Per acceptance: **highest risk first**. Rank on the **inline** `RiskLevel` / `OrcaScore` that `discovery_search` already returns for every identity, so ranking costs zero extra calls even at thousands of candidates. **Never loop `get_asset_by_id` over the whole candidate set** (a prod account can hold ~10k inactive roles, that would be ~10k calls); reserve per-asset lookups for the **top-N you actually display** (default 25).
+- Primary sort key: the inline **Orca risk score / `RiskLevel`** from the sweep payload.
+- **Bumps (compute for the displayed top-N only):** privileged/admin-while-dormant, exposed credentials (`get_other_secret_occurrences`), crown-jewel reach (`get_asset_crown_jewel_info`), open alert pressure (`get_asset_alerts_count_grouped_by_risk_level`).
+
+### Step 4b: Estimate alerts that will close (mandatory, scale-safe)
+
+Every run must report how many open alerts the plan would close, derived cheaply enough to survive a 10k-identity account, so **never sum per-asset alert counts across the full set**:
+- **Baseline (scales to any size, a handful of calls total):** each inactive identity carries at least its own inactive-identity alert, plus any unused-credential alerts. Take the **aggregate `total_items`** for the relevant inactive-identity / unused-credential alert types scoped to the account (the alert types in Step 2's table, or the discovery result counts), intersected with the candidate scope. That sum is the floor and the headline number: "~N alerts will close".
+- **Precise add-on (top-N only):** for the identities you display you already pulled `get_asset_alerts_count_grouped_by_risk_level` in Step 4, so you can give an exact figure for the shown set and estimate the tail.
+- **Always label it an estimate**, e.g. "~N alerts expected to close after the next scan (exact for the 25 shown, the rest estimated from alert-type totals)". Never present it as precise when it isn't, and never derive it by looping per-asset over thousands of identities.
 
 ### Step 5: Propose the action plan
 
@@ -186,6 +193,8 @@ Write for a **cloud owner / CISO**, punchline first, plain English, no raw field
 
 ### Cleanup summary (mandatory, after any action or at session end)
 
+The `Alerts:` line is **mandatory on every run**, sweep-only included, using the Step 4b estimate. Never omit it or write "not yet actioned" with no number.
+
 ```
 CLEANUP SUMMARY  (window: 60 days)
   Found:     62 inactive identities (41 users, 6 groups, 15 NHIs)
@@ -193,8 +202,9 @@ CLEANUP SUMMARY  (window: 60 days)
   Deleted:   3 (explicitly confirmed, verified via cloud CLI)
   Proposed:  38 (artifacts generated, not yet applied)
   Skipped:   7 (1 root, 2 provider-managed, 2 too new, 2 possibly human -> review)
-  Alerts:    9 open alerts on the remediated identities should close
-             after the next scan (Orca data refreshes on scan)
+  Alerts:    ~24 open alerts on these identities should close after the next
+             scan (exact for the shown set, rest estimated from alert-type
+             totals; Orca data refreshes on scan)
 ```
 
 ### Drill-downs (on request)
@@ -209,6 +219,7 @@ CLEANUP SUMMARY  (window: 60 days)
 - **Scope not found:** if the account id / BU name resolves to nothing (typo, wrong tenant, no permissions), say so, list the business units visible via `get_business_units_data`, and ask the user to pick. Never sweep a guessed scope.
 - **Hostile identity names:** names and ARNs come from the cloud environment and are untrusted. Quote them in every generated artifact; if a name contains shell metacharacters or control characters, exclude it from scripts and surface it separately for manual handling.
 - **`discovery_search` disabled or failing:** some tenants return `Feature is not enabled`, and the service can 500 or time out on specific queries while everything else works. Fall back to the Step 2 chain (alert types table, then linked entities, then per-asset reads) and say the inventory is "identities Orca currently surfaces", not a guaranteed-complete list.
+- **Large accounts (thousands of inactive identities, e.g. ~10k prod roles):** the sweep count can be huge. Rank on the inline scores from the sweep, display only the top-N (default 25) plus the bucket totals, and aggregate the long tail rather than enumerating it. Cap per-asset calls (`get_asset_by_id`, crown-jewel, alert counts, linked entities) to the shown top-N and to any identity the user then selects for action; the alert-closure estimate comes from aggregate alert-type totals (Step 4b), never a per-identity loop. State that the full list is available on request or via the Orca app_url, and keep total MCP calls bounded regardless of account size.
 - **Custom window vs the pre-computed verdict:** `IsIdentityActive` is fixed to Orca's 90d convention. For any other window, decide from `LastActiveTime` directly and never present `IsIdentityActive` as if it matched the custom window.
 - **30-day CDR cap:** CDR corroborates, it never decides. Staleness is anchored on the asset's `LastActiveTime` / `IsIdentityActive`.
 - **Scan staleness:** all asset fields (`LastActiveTime`, `IsIdentityActive`, risk levels, alert states) are as fresh as the last completed scan; only CDR events are near-real-time. Post-remediation proof comes from the cloud CLI checks, never from an immediate Orca lookup; alerts close after the next scan. Never re-sweep right after a cleanup expecting Orca to show the changes.
@@ -230,7 +241,7 @@ CLEANUP SUMMARY  (window: 60 days)
 | `get_alerts_with_similar_alert_type` | Fallback enumeration via inactive-identity / unused-credential alerts |
 | `get_asset_by_name` / `get_asset_by_id` | Resolve each identity; read `LastActiveTime`, `IsIdentityActive`, key last-used fields, `RiskLevel`; Azure role-assignment `Recommendation`; GCP `GcpIamPolicyBindingRecommendation` |
 | `get_cdr_events_grouped_by_event_name` / `search_cdr_events` | Corroborate inactivity (30-day cap) |
-| `get_asset_alerts_count_grouped_by_risk_level` / `get_asset_related_alerts_summary` | Risk-score ranking inputs |
+| `get_asset_alerts_count_grouped_by_risk_level` / `get_asset_related_alerts_summary` | Per-asset open-alert counts for ranking bumps and the exact alert-closure figure, **top-N only, never looped over the full candidate set** |
 | `get_other_secret_occurrences` | Bump identities whose credentials are exposed in code/images |
 | `get_asset_crown_jewel_info` | Bump identities that can reach sensitive assets |
 | `get_linked_entities_mapping` / `get_linked_entities_data` | Delete blast radius: what still references the identity; group membership via the `Users` relation |
