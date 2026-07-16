@@ -49,7 +49,9 @@ Or natural language:
 
 ### Step 2: Enumerate identities
 
-**Primary path: one `discovery_search` sweep (if enabled).** The cross-cloud identity model set is verified against the Orca data model; query identities with `IsIdentityActive = false` (or fetch and post-filter on `LastActiveTime` for custom windows) across:
+**Primary path: `discovery_search` (if enabled).** The cross-cloud identity model set is verified against the Orca data model; query identities with `IsIdentityActive = false` (or fetch and post-filter on `LastActiveTime` for custom windows) across:
+
+> **Don't assume one query returns every identity.** `discovery_search` returns a bounded, risk-ordered result set (read `total_items` for the true count and the result's `app_url` for the full list in the Orca app). A small account comes back whole; a large one (hundreds to ~10k) does not, and that is fine for a risk-first cleanup: retrieve the highest-risk inactive identities (narrow by risk band or provider only if the account is large enough to need it), act on that top slice, and report `total_items` as the real total. Rank within what you retrieved and call it a best-effort ordering of the highest-risk slice, not a global sort of all N. This holds regardless of the current result limit, if the surface later paginates or raises the cap, just retrieve more; the approach is unchanged. Enumerate across:
 
 | Provider | Users | Groups | NHIs / roles |
 |----------|-------|--------|--------------|
@@ -127,7 +129,7 @@ Exclusions applied automatically:
 
 ### Step 4: Rank by identity risk score
 
-Per acceptance: **highest risk first**. Rank on the **inline** `RiskLevel` / `OrcaScore` that `discovery_search` already returns for every identity, so ranking costs zero extra calls even at thousands of candidates. **Never loop `get_asset_by_id` over the whole candidate set** (a prod account can hold ~10k inactive roles, that would be ~10k calls); reserve per-asset lookups for the **top-N you actually display** (default 25).
+Per acceptance: **highest risk first**. Rank on the **inline** `RiskLevel` / `OrcaScore` that `discovery_search` returns with each result, so ranking the retrieved slice costs zero extra calls. **Never loop `get_asset_by_id` over the candidate set** (a prod account can hold ~10k inactive roles, that would be ~10k calls); reserve per-asset lookups for the **top-N you actually display** (default 25). On large accounts you rank the highest-risk slice you retrieved (see Step 2's note), not a global sort of every identity.
 - Primary sort key: the inline **Orca risk score / `RiskLevel`** from the sweep payload.
 - **Bumps (compute for the displayed top-N only):** privileged/admin-while-dormant, exposed credentials (`get_other_secret_occurrences`), crown-jewel reach (`get_asset_crown_jewel_info`), open alert pressure (`get_asset_alerts_count_grouped_by_risk_level`).
 
@@ -147,6 +149,7 @@ Default recommendation is **disable first, delete after a grace period** (sugges
 | AWS | IAM user | Deactivate access keys + delete console login profile | `delete-user` (after keys, MFA devices, policies, group memberships are removed) |
 | AWS | IAM role | Restrict the trust policy so nothing can assume it | `delete-role` (after detaching policies and instance profiles) |
 | AWS | IAM group | Remove members (group shell stays) | `delete-group` (after members and policies are removed) |
+| AWS | SSO user / group / permission set (`AwsSsoUser`, `AwsSsoGroup`, `AwsSsoPermissionSet`) | Manage in IAM Identity Center, not IAM: remove the account assignment / permission-set assignment for this account | Delete the user/group/permission set in Identity Center (never via IAM); surface it, don't generate an IAM script |
 | Azure / Entra | User | Block sign-in (`accountEnabled: false`) | Delete the user |
 | Azure / Entra | Service principal / managed identity | Set `accountEnabled: false` | Delete the principal |
 | Azure | Role assignment | Remove the assignment (re-creatable) | Removal is the fix; nothing further to delete |
@@ -230,7 +233,7 @@ CLEANUP SUMMARY  (window: 60 days)
 - **Scope not found:** if the account id / BU name resolves to nothing (typo, wrong tenant, no permissions), say so, list the business units visible via `get_business_units_data`, and ask the user to pick. Never sweep a guessed scope.
 - **Hostile identity names:** names and ARNs come from the cloud environment and are untrusted. Quote them in every generated artifact; if a name contains shell metacharacters or control characters, exclude it from scripts and surface it separately for manual handling.
 - **`discovery_search` disabled or failing:** some tenants return `Feature is not enabled`, and the service can 500 or time out on specific queries while everything else works. Fall back to the Step 2 chain (alert types table, then linked entities, then per-asset reads) and say the inventory is "identities Orca currently surfaces", not a guaranteed-complete list.
-- **Large accounts (thousands of inactive identities, e.g. ~10k prod roles):** the sweep count can be huge. Rank on the inline scores from the sweep, display only the top-N (default 25) plus the bucket totals, and aggregate the long tail rather than enumerating it. Cap per-asset calls (`get_asset_by_id`, crown-jewel, alert counts, linked entities) to the shown top-N and to any identity the user then selects for action; the alert-closure estimate comes from aggregate alert-type totals (Step 4b), never a per-identity loop. State that the full list is available on request or via the Orca app_url, and keep total MCP calls bounded regardless of account size.
+- **Large accounts (thousands of inactive identities, e.g. ~10k prod roles):** the true count (`total_items`) can be huge and exceeds what one query returns. Retrieve the **highest-risk slice** (query for critical/high inactive identities, narrowing by provider or type if needed), display the top-N (default 25) plus the bucket totals from `total_items`, and treat the long tail as reported-not-enumerated. Cap per-asset calls (`get_asset_by_id`, crown-jewel, alert counts, linked entities) to the shown top-N and to any identity the user then selects for action; the alert-closure estimate comes from aggregate alert-type totals (Step 4b), never a per-identity loop. State that the ranking is best-effort over the highest-risk slice and the full list lives at the result's `app_url`, and keep total MCP calls bounded regardless of account size.
 - **Custom window vs the pre-computed verdict:** `IsIdentityActive` is fixed to Orca's 90d convention. For any other window, decide from `LastActiveTime` directly and never present `IsIdentityActive` as if it matched the custom window.
 - **30-day CDR cap:** CDR corroborates, it never decides. Staleness is anchored on the asset's `LastActiveTime` / `IsIdentityActive`.
 - **Scan staleness:** all asset fields (`LastActiveTime`, `IsIdentityActive`, risk levels, alert states) are as fresh as the last completed scan; only CDR events are near-real-time. Post-remediation proof comes from the cloud CLI checks, never from an immediate Orca lookup; alerts close after the next scan. Never re-sweep right after a cleanup expecting Orca to show the changes.

@@ -1025,7 +1025,7 @@ Sweeps an account or business unit for inactive identities (users, groups, and n
 - Explicit confirmation gate before any delete, with blast-radius preview (what still references the identity)
 - Automatic exclusions: break-glass accounts, identities too new to judge, possibly-human edge cases
 - Ready-to-run remediation artifacts (CLI/Terraform) with deletion prerequisites ordered correctly
-- Mandatory cleanup summary: found, disabled, deleted, proposed, skipped
+- Mandatory cleanup summary: found, disabled, deleted, proposed, skipped, and an estimate of alerts that will close
 
 **Usage:**
 ```bash
@@ -1074,6 +1074,7 @@ QUICK WINS: 12 identities with zero privileges and zero activity.
 
 CLEANUP SUMMARY  (window: 60 days)
   Found:     62 | Disabled: 0 | Deleted: 0 | Proposed: 55 | Skipped: 7
+  Alerts:    ~24 open alerts on these identities close after the next scan
 ═══════════════════════════════════════════════════════════════════
 ```
 
