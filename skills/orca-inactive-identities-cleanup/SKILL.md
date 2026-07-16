@@ -108,7 +108,18 @@ Corroboration on top, where available:
 
 Exclusions applied automatically:
 - **Root / tenant-owner accounts:** never disable/delete candidates, in any cloud. AWS `<root_account>` regularly tops the inactive list with a high risk score; surface it separately with its own fixes (remove root access keys, enforce MFA, stop using root day-to-day) and keep it out of every bulk action.
-- **Provider-managed roles:** AWS service-linked roles (`AWSServiceRoleFor*`) can only be removed via `aws iam delete-service-linked-role` and are frequently required or auto-recreated by their service (deleting `AWSServiceRoleForOrganizations` breaks org management); IAM Identity Center roles (`AWSReservedSSO_*`) are owned by Identity Center and deleting them through IAM breaks SSO provisioning. Skip both by default, list them under "provider-managed", and route SSO cleanup to Identity Center. The same pattern holds in other clouds and must be excluded too, e.g. AliCloud `AliyunServiceRoleFor*`, `AliyunReservedSSO-*`, and `AliyunCS*`/`Aliyun*DefaultRole` service-managed roles (verified live: an AliCloud account's roles were almost entirely these), GCP `roles/` service agents, and Azure-managed identities created by services.
+- **Provider-managed / service / built-in identities:** these show up "inactive" constantly but are owned or auto-created by the cloud (or a first-party vendor). Never disable/delete candidates, removing them breaks services, org management, or SSO. Detect per provider (fields verified against the Orca data model); prefer the boolean over name-matching where one exists:
+
+  | Provider | Exclude when | Notes |
+  |----------|--------------|-------|
+  | AWS | `IsAwsManagedRole == true` | one boolean covers `/aws-service-role/` (`AWSServiceRoleFor*`), `/aws-reserved/` (`AWSReservedSSO_*` Identity Center), `OrganizationAccountAccessRole`, and Control Tower / StackSets / QuickSetup roles. Route SSO cleanup to Identity Center |
+  | Azure | SP `ServicePrincipalType == "ManagedIdentity"`, OR `AppOwnerOrganizationId == f8cdef31-a31e-4b4a-93e4-5f571e91255a` (Microsoft first-party); role definition `IsBuiltInRole == true` | managed identities are workload-bound; first-party Microsoft apps must not be touched |
+  | GCP | service account `IsUserManaged == false` (Google service agents, e.g. `service-*@gcp-sa-*`, `@cloudservices`) | also treat provider defaults (`IsUserManaged == true` AND `IsUserCreated == false`: `@appspot`, `*-compute@developer`) as load-bearing, caution, not quick-win |
+  | AliCloud | name prefix `AliyunServiceRoleFor` / `AliyunReservedSSO-` / `AliyunCS*` | **no model boolean exists**, name-match only, lower confidence |
+  | Tencent | `RoleType == "system"` plus service-role name match | raw uninterpreted field, **low confidence**, verify against the asset before acting |
+  | OCI | **no reliable signal** | Oracle-managed identities can't be distinguished in the data; don't auto-propose OCI roles/dynamic groups for delete, route to "review with owner" |
+
+  Where no boolean exists (AliCloud, Tencent, OCI), say so in the output: the exclusion is name/heuristic-based and lower-confidence, so lean on "review with owner" rather than auto-proposing destructive actions.
 - **Too new to judge:** identities created inside the chosen window are skipped (a two-week-old identity with no activity is new, not dead).
 - **Possibly human, unclear:** listed under "review" with disable-only options, never proposed for delete.
 - **Break-glass / DR identities:** dormant by design; flagged but exempt from delete. Recommend converting them to just-in-time (time-bound, on-request) access instead, so the capability stays available without the standing risk.
@@ -147,7 +158,7 @@ Default recommendation is **disable first, delete after a grace period** (sugges
 
 For AWS, Azure, and GCP generate exact CLI/Terraform artifacts; for Alibaba, OCI, and Tencent generate the CLI steps at mechanism level and mark them for review before running (less battle-tested surface).
 
-Root accounts and provider-managed roles (`AWSServiceRoleFor*`, `AWSReservedSSO_*`) never enter this table; they were excluded in Step 3. **Vendor and platform roles** (third-party integration roles like security scanners or cost tools, and org-plumbing like `OrganizationAccountAccessRole`) may pass the inactivity test yet be load-bearing: used rarely but critically, or exercised from another account so their activity is invisible here. Tag them "review with owner" instead of quick-win, and lean on the blast-radius links before proposing anything destructive.
+Root accounts and provider-managed identities (per the Step 3 table) never enter this table; they were already excluded. **Vendor and platform roles** (third-party integration roles like security scanners or cost tools, and cross-account access roles) may pass the inactivity test yet be load-bearing: used rarely but critically, or exercised from another account so their activity is invisible here. Tag them "review with owner" instead of quick-win, and lean on the blast-radius links before proposing anything destructive.
 
 ### Step 6: Confirmation gate (destructive actions)
 
@@ -239,7 +250,7 @@ CLEANUP SUMMARY  (window: 60 days)
 | `get_business_units_data` | Expand a business unit to its member accounts |
 | `discovery_search` | Primary enumeration: users / groups / NHIs with `IsIdentityActive = false` across all six providers (if enabled) |
 | `get_alerts_with_similar_alert_type` | Fallback enumeration via inactive-identity / unused-credential alerts |
-| `get_asset_by_name` / `get_asset_by_id` | Resolve each identity; read `LastActiveTime`, `IsIdentityActive`, key last-used fields, `RiskLevel`; Azure role-assignment `Recommendation`; GCP `GcpIamPolicyBindingRecommendation` |
+| `get_asset_by_name` / `get_asset_by_id` | Resolve each identity; read `LastActiveTime`, `IsIdentityActive`, key last-used fields, `RiskLevel`; provider-managed flags (`IsAwsManagedRole`, GCP `IsUserManaged`/`IsUserCreated`, Azure `ServicePrincipalType`/`AppOwnerOrganizationId`/`IsBuiltInRole`); Azure role-assignment `Recommendation`; GCP `GcpIamPolicyBindingRecommendation` |
 | `get_cdr_events_grouped_by_event_name` / `search_cdr_events` | Corroborate inactivity (30-day cap) |
 | `get_asset_alerts_count_grouped_by_risk_level` / `get_asset_related_alerts_summary` | Per-asset open-alert counts for ranking bumps and the exact alert-closure figure, **top-N only, never looped over the full candidate set** |
 | `get_other_secret_occurrences` | Bump identities whose credentials are exposed in code/images |
