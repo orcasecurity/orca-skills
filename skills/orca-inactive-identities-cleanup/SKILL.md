@@ -94,7 +94,7 @@ Exclusions applied automatically:
 - **Too new to judge:** identities created inside the chosen window are skipped (a two-week-old identity with no activity is new, not dead).
 - **Possibly human, unclear:** listed under "review" with disable-only options, never proposed for delete.
 - **Break-glass / DR identities:** dormant by design; flagged but exempt from delete. Recommend converting them to just-in-time (time-bound, on-request) access instead, so the capability stays available without the standing risk.
-- **No activity fields:** some inventory-only identity types (e.g. Linode, Anthropic, Vercel users) carry no activity data; list them only on request and mark them "no inactivity signal available", never auto-propose action.
+- **No activity fields:** absence of `IsIdentityActive` / `LastActiveTime` is never evidence of inactivity. GCP users only carry activity data when the Google Workspace integration is on; OCI IdP-federated users may lack the fields entirely; inventory-only identity types (e.g. Linode, Anthropic, Vercel users) never have them. Mark all of these "no inactivity signal available" and never auto-propose action.
 
 ### Step 4: Rank by identity risk score
 
@@ -104,7 +104,7 @@ Per acceptance: **highest risk first**. For each inactive identity read the risk
 
 ### Step 5: Propose the action plan
 
-Default recommendation is **disable first, delete after a grace period** (suggest 30 days disabled with no complaints, then delete). Present the ranked list with a proposed action per identity; the user can accept, override per identity, or act in bulk ("disable all", "delete 2, 5, 7"). If `--action` was given, pre-fill that action for every eligible identity instead of the per-identity default; `--action delete` still passes the confirmation gate in Step 6, and excluded buckets (break-glass, possibly human, too new) stay disable-only regardless.
+Default recommendation is **disable first, delete after a grace period** (suggest 30 days disabled with no complaints, then delete). **Already-disabled identities** are detectable on the asset (Azure `AccountEnabled: false`, AWS all keys inactive and no login profile, GCP `disabled: true`): skip the disable proposal for them and propose delete-after-grace directly, noting how long they've been disabled. Present the ranked list with a proposed action per identity; the user can accept, override per identity, or act in bulk ("disable all", "delete 2, 5, 7"). If `--action` was given, pre-fill that action for every eligible identity instead of the per-identity default; `--action delete` still passes the confirmation gate in Step 6, and excluded buckets (break-glass, possibly human, too new) stay disable-only regardless.
 
 | Provider | Identity type | Disable (non-destructive, reversible) | Delete (destructive, irreversible) |
 |----------|---------------|----------------------------------------|-------------------------------------|
