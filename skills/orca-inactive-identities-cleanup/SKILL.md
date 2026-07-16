@@ -262,8 +262,9 @@ CLEANUP SUMMARY  (window: 60 days)
 | `add_alert_comment` / `update_alert_status` / `verify_alert` / `dismiss_alert` | Tier-1 Orca-native actions on the related alerts |
 
 ### Parameter notes
-- Time frame: default **90 days** (Orca's built-in `IsIdentityActive` convention); when the user picks another window, compare `LastActiveTime` directly. CDR corroboration is capped at 30 days by the MCP.
+- `--inactive Nd` sets the time frame: default **90 days** (Orca's built-in `IsIdentityActive` convention); when the user picks another window, compare `LastActiveTime` directly. CDR corroboration is capped at 30 days by the MCP.
 - `--only users|groups|nhis` re-scopes the sweep to one bucket. `--action disable|delete` pre-selects the proposed action for every eligible identity (Step 5); `--action delete` never skips the Step 6 confirmation gate.
+- The `cloud <aws|azure|gcp|alicloud|oci|tencent>` drill-down narrows a completed sweep to one provider by re-running Step 2's enumeration (discovery query or alert-anchored fallback) scoped to that provider's identity models; it does not re-ask the window.
 - Resolve `model_type` from a real asset lookup; don't pass guessed model names (MCP-reported types can differ from internal model names, e.g. `AwsRole` vs `AwsIamRole`).
 - `get_alerts_with_similar_alert_type` takes the machine `alert_type` string plus an `alert_id` to exclude; pass a placeholder id (e.g. `orca-0`) when enumerating rather than pivoting from an existing alert.
 
