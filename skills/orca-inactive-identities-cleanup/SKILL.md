@@ -84,11 +84,13 @@ Corroboration on top, where available:
 | Azure | `Recommendation` / `RecommendationType: "Inactive"` on the identity's role assignments; CDR events |
 | GCP | `Recommendation`, `total_actions: 0`, `LastUsageTime` on binding recommendations; unused service-account keys; CDR events |
 | Alibaba / OCI / Tencent | Asset timestamps only; no recommendation layer. Say so in the output and lean fully on `LastActiveTime` |
-| Groups (all providers) | Inactive when **empty** (no members) or when **every member is itself inactive**. A group with even one active member is never a cleanup candidate |
+| Groups (all providers) | Inactive when **empty** (no members) or when **every member is itself inactive**. A group with even one active member is never a cleanup candidate. Fetch members via `get_linked_entities_mapping` (the `Users` relation); a group with zero user links is empty |
 
 > **Window cap:** this MCP caps CDR lookback at **30 days** (`last_30_days`). Never call an identity "inactive" from CDR alone; true staleness is anchored on the asset's `LastActiveTime` / `IsIdentityActive`, and the output must say which signal decided.
 
 Exclusions applied automatically:
+- **Root / tenant-owner accounts:** never disable/delete candidates, in any cloud. AWS `<root_account>` regularly tops the inactive list with a high risk score; surface it separately with its own fixes (remove root access keys, enforce MFA, stop using root day-to-day) and keep it out of every bulk action.
+- **Provider-managed roles:** AWS service-linked roles (`AWSServiceRoleFor*`) can only be removed via `aws iam delete-service-linked-role` and are frequently required or auto-recreated by their service (deleting `AWSServiceRoleForOrganizations` breaks org management); IAM Identity Center roles (`AWSReservedSSO_*`) are owned by Identity Center and deleting them through IAM breaks SSO provisioning. Skip both by default, list them under "provider-managed", and route SSO cleanup to Identity Center. Treat equivalent managed identities in other clouds the same way.
 - **Too new to judge:** identities created inside the chosen window are skipped (a two-week-old identity with no activity is new, not dead).
 - **Possibly human, unclear:** listed under "review" with disable-only options, never proposed for delete.
 - **Break-glass / DR identities:** dormant by design; flagged but exempt from delete. Recommend converting them to just-in-time (time-bound, on-request) access instead, so the capability stays available without the standing risk.
@@ -119,6 +121,8 @@ Default recommendation is **disable first, delete after a grace period** (sugges
 | Tencent Cloud | CAM user / role / group | Disable console login + deactivate keys | Delete via CAM after detaching policies and memberships |
 
 For AWS, Azure, and GCP generate exact CLI/Terraform artifacts; for Alibaba, OCI, and Tencent generate the CLI steps at mechanism level and mark them for review before running (less battle-tested surface).
+
+Root accounts and provider-managed roles (`AWSServiceRoleFor*`, `AWSReservedSSO_*`) never enter this table; they were excluded in Step 3. **Vendor and platform roles** (third-party integration roles like security scanners or cost tools, and org-plumbing like `OrganizationAccountAccessRole`) may pass the inactivity test yet be load-bearing: used rarely but critically, or exercised from another account so their activity is invisible here. Tag them "review with owner" instead of quick-win, and lean on the blast-radius links before proposing anything destructive.
 
 ### Step 6: Confirmation gate (destructive actions)
 
@@ -170,7 +174,7 @@ CLEANUP SUMMARY  (window: 60 days)
   Disabled:  14 (applied, verified via cloud CLI)
   Deleted:   3 (explicitly confirmed, verified via cloud CLI)
   Proposed:  38 (artifacts generated, not yet applied)
-  Skipped:   7 (2 break-glass, 3 too new, 2 possibly human -> review)
+  Skipped:   7 (1 root, 2 provider-managed, 2 too new, 2 possibly human -> review)
   Alerts:    9 open alerts on the remediated identities should close
              after the next scan (Orca data refreshes on scan)
 ```
@@ -211,7 +215,7 @@ CLEANUP SUMMARY  (window: 60 days)
 | `get_asset_alerts_count_grouped_by_risk_level` / `get_asset_related_alerts_summary` | Risk-score ranking inputs |
 | `get_other_secret_occurrences` | Bump identities whose credentials are exposed in code/images |
 | `get_asset_crown_jewel_info` | Bump identities that can reach sensitive assets |
-| `get_linked_entities_mapping` / `get_linked_entities_data` | Delete blast radius: what still references the identity |
+| `get_linked_entities_mapping` / `get_linked_entities_data` | Delete blast radius: what still references the identity; group membership via the `Users` relation |
 | `add_alert_comment` / `update_alert_status` / `verify_alert` / `dismiss_alert` | Tier-1 Orca-native actions on the related alerts |
 
 ### Parameter notes
