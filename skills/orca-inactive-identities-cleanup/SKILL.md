@@ -88,6 +88,8 @@ Or natural language:
 
 > **Model-type caveat:** `get_asset_by_name` / `get_asset_by_id` reject unknown `model_type` values (e.g. `AwsIamUser` errors). Run a default `Inventory` lookup first and read the asset's real `type` field rather than guessing; MCP-reported names can differ slightly from internal model names (e.g. `AwsRole` vs `AwsIamRole`).
 
+> **Never trust the query's "inactive" wording, re-check the field.** A natural-language `discovery_search` for "inactive X" is unreliable both ways (verified live): it returns empty for some providers even when inactive identities exist, and it can include *active* identities in the results. Query broadly (by identity type) and decide inactivity yourself from each asset's `IsIdentityActive` / `LastActiveTime`, never from the fact that an item came back.
+
 ### Step 3: Decide what is actually inactive
 
 Primary signal, identical for **all six providers**: `IsIdentityActive: false` (default 90d window) or `LastActiveTime` older than the chosen cutoff (custom windows).
