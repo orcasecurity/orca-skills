@@ -41,7 +41,7 @@ Or natural language:
 
 1. **Resolve scope first (ask if not given).** The skill needs a scope before anything else. Accept any one of three:
    - **Account id** used directly.
-   - **Business unit**, expanded via `get_business_units_data` to its member accounts.
+   - **Business unit**: `get_business_units_data` returns the BU's saved filter (accounts, providers, tags), not a ready-made account list, so derive the member accounts from that filter before sweeping.
    - **Tag** (`--tag key=value`, repeatable, or "identities tagged env=prod" in words): sweep every identity carrying the given tag(s), across accounts. Express the tag in the Step 2 `discovery_search` query; if the query can't honor it, post-filter retrieved results on the identity's tag fields (`OrcaTags` / `Tags` / `ModelTags`). A tag scope is bounded by the tag, not the whole org, but it can still match a lot, so the large-account handling in Step 4 / the Edge Cases applies.
 
    **If the user gave none of the three, ask which account, business unit, or tag to sweep** (offer to list the visible BUs via `get_business_units_data`) and wait. Never sweep a whole org by default. A tag may also be combined with an account/BU to narrow further, but on its own it is a valid scope.
@@ -106,11 +106,11 @@ Corroboration on top, where available:
 
 | Provider | Extra inactivity evidence |
 |----------|---------------------------|
-| AWS | `AccessKeyNLastUsedDate` old or never, `PermissionUsage` near zero; `get_cdr_events_grouped_by_event_name` (actor = identity ARN) shows zero events |
+| AWS | `AccessKey1LastUsedDate` / `AccessKey2LastUsedDate` old or never, `PermissionUsage` near zero; `get_cdr_events_grouped_by_event_name` (actor = identity ARN) shows zero events |
 | Azure | `Recommendation` / `RecommendationType: "Inactive"` on the identity's role assignments; CDR events |
-| GCP | `Recommendation`, `total_actions: 0`, `LastUsageTime` on binding recommendations; unused service-account keys; CDR events |
+| GCP | `Recommendation` (with `total_actions: 0` inside its `additional_data`), `LastUsageTime` on binding recommendations; unused service-account keys; CDR events |
 | Alibaba / OCI / Tencent | Asset timestamps only; no recommendation layer. Say so in the output and lean fully on `LastActiveTime` |
-| Groups (all providers) | Inactive when **empty** (no members) or when **every member is itself inactive**. A group with even one active member is never a cleanup candidate. Fetch members via `get_linked_entities_mapping` (the `Users` relation); a group with zero user links is empty |
+| Groups (all providers) | Inactive when **empty** (no members) or when **every member is itself inactive**. A group with even one active member is never a cleanup candidate. Fetch members via `get_linked_entities_mapping` (the members relation, commonly `Users`); a group with zero member links is empty |
 
 > **Window cap:** this MCP caps CDR lookback at **30 days** (`last_30_days`). Never call an identity "inactive" from CDR alone; true staleness is anchored on the asset's `LastActiveTime` / `IsIdentityActive`, and the output must say which signal decided.
 
@@ -131,13 +131,20 @@ Exclusions applied automatically:
 - **Too new to judge:** identities created inside the chosen window are skipped (a two-week-old identity with no activity is new, not dead).
 - **Possibly human, unclear:** listed under "review" with disable-only options, never proposed for delete.
 - **Break-glass / DR identities:** dormant by design; flagged but exempt from delete. Recommend converting them to just-in-time (time-bound, on-request) access instead, so the capability stays available without the standing risk.
-- **No activity fields:** absence of `IsIdentityActive` / `LastActiveTime` is never evidence of inactivity. GCP users only carry activity data when the Google Workspace integration is on; OCI IdP-federated users may lack the fields entirely; **AliCloud RAM roles carry no activity signal at all** (verified live: every role in a scanned AliCloud account had `IsIdentityActive: null` and no `LastActiveTime`); inventory-only identity types (e.g. Linode, Anthropic, Vercel users) never have them. Mark all of these "no inactivity signal available" and never auto-propose action, on roles especially lean on the alert-anchored path (Alibaba/OCI have inactive-*user* rules but no inactive-*role* rules, so roles without a signal simply can't be swept, say so).
+- **No activity fields:** absence of `IsIdentityActive` / `LastActiveTime` is never evidence of inactivity, and several types this skill enumerates carry no activity signal at all, so they can't be judged by any window and must be marked "no inactivity signal available" (never auto-proposed):
+  - **AWS SSO identities** (`AwsSsoUser`, `AwsSsoGroup`, `AwsSsoPermissionSet`) have no activity fields, handle via Identity Center, don't infer inactivity here.
+  - **Tencent CAM roles** (`TencentCloudCamRole`) and **OCI dynamic groups** (`OciIamDynamicGroup`) have none.
+  - **AliCloud RAM roles** carry no activity signal (verified live: every role in a scanned AliCloud account had `IsIdentityActive: null` and no `LastActiveTime`).
+  - **GCP** users only carry activity data when the Google Workspace integration is on; **OCI IdP-federated users** may lack the fields entirely; GCP service-account *keys* have `LastActiveTime` but no `IsIdentityActive`.
+  - **Inventory-only types** (Linode, Anthropic, Vercel users) never have them.
+
+  For roles/NHIs with no signal, lean on the alert-anchored path, but note Alibaba/OCI have inactive-*user* rules and no inactive-*role* rules, so a role with neither an activity field nor an alert simply can't be swept, say so rather than guessing.
 
 ### Step 4: Rank by identity risk score
 
 Per acceptance: **highest risk first**. Rank on the **inline** `RiskLevel` / `OrcaScore` that `discovery_search` returns with each result, so ranking the retrieved slice costs zero extra calls. **Never loop `get_asset_by_id` over the candidate set** (a prod account can hold ~10k inactive roles, that would be ~10k calls); reserve per-asset lookups for the **top-N you actually display** (default 25). On large accounts you rank the highest-risk slice you retrieved (see Step 2's note), not a global sort of every identity.
-- Primary sort key: the inline **Orca risk score / `RiskLevel`** from the sweep payload.
-- **Bumps (compute for the displayed top-N only):** privileged/admin-while-dormant, exposed credentials (`get_other_secret_occurrences`), crown-jewel reach (`get_asset_crown_jewel_info`), open alert pressure (`get_asset_alerts_count_grouped_by_risk_level`).
+- Primary sort key: the inline **Orca risk score / `RiskLevel`** from the sweep payload. This is a composite Orca already computes from privilege, crown-jewel status, and alert pressure, so a dormant admin surfaces near the top on its base score alone (verified live: a dormant admin role and a crown-jewel user ranked top with no manual bumps). Rely on it as the ranking input, don't assume the bumps below are what lifts high-risk identities into view.
+- **Bumps (refinements/annotations on the displayed top-N):** confirm and label privileged/admin-while-dormant, exposed credentials (`get_other_secret_occurrences`), crown-jewel reach (`get_asset_crown_jewel_info`), open alert pressure (`get_asset_alerts_count_grouped_by_risk_level`). If a bump reveals an identity the base score under-ranked, pull it up and say why. To guard the tail on large accounts, prefer querying the highest-risk / privileged inactive identities in Step 2 rather than trusting one unfiltered slice.
 
 ### Step 4b: Estimate alerts that will close (mandatory, scale-safe)
 
@@ -148,7 +155,7 @@ Every run must report how many open alerts the plan would close, derived cheaply
 
 ### Step 5: Propose the action plan
 
-Default recommendation is **disable first, delete after a grace period** (suggest 30 days disabled with no complaints, then delete). **Already-disabled identities** are detectable on the asset (Azure `AccountEnabled: false`, AWS all keys inactive and no login profile, GCP `disabled: true`): skip the disable proposal for them and propose delete-after-grace directly, noting how long they've been disabled. Present the ranked list with a proposed action per identity; the user can accept, override per identity, or act in bulk ("disable all", "delete 2, 5, 7"). If `--action` was given, pre-fill that action for every eligible identity instead of the per-identity default; `--action delete` still passes the confirmation gate in Step 6, and excluded buckets (break-glass, possibly human, too new) stay disable-only regardless.
+Default recommendation is **disable first, delete after a grace period** (suggest 30 days disabled with no complaints, then delete). **Already-disabled identities** are detectable on the asset (Azure user `AccountEnabled: false` / service principal `IsEnabled: false`, AWS all keys inactive and no login profile, GCP service account `IsDisabled: true`): skip the disable proposal for them and propose delete-after-grace directly, noting how long they've been disabled. Present the ranked list with a proposed action per identity; the user can accept, override per identity, or act in bulk ("disable all", "delete 2, 5, 7"). If `--action` was given, pre-fill that action for every eligible identity instead of the per-identity default; `--action delete` still passes the confirmation gate in Step 6, and excluded buckets (break-glass, possibly human, too new) stay disable-only regardless.
 
 | Provider | Identity type | Disable (non-destructive, reversible) | Delete (destructive, irreversible) |
 |----------|---------------|----------------------------------------|-------------------------------------|
