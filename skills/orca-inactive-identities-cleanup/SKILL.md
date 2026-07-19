@@ -1,7 +1,7 @@
 ---
 name: orca-inactive-identities-cleanup
-description: Inactive-identity cleanup - finds inactive identities (users, groups, and non-human identities) across an account or business unit in every cloud provider Orca supports (AWS, Azure incl. Entra ID, GCP incl. Google Workspace, Alibaba Cloud, OCI, Tencent Cloud), ranks them by identity risk score (highest risk first), and drives remediation through a non-destructive path (disable) or a destructive path (delete) that always requires explicit confirmation. Asks for the inactivity time frame (e.g. last 60 days) when the user hasn't given one. Use when the user wants to clean up inactive or dormant identities, offboard unused users or service accounts, delete stale groups, or shrink the identity attack surface (e.g. "clean up inactive identities", "find dormant users", "disable unused service accounts").
-trigger: When the user asks to "clean up inactive identities", "find dormant users", "which identities are unused", "delete stale accounts", "disable inactive service accounts", "remove identities nobody uses", "identity cleanup", "offboard stale identities", or passes an account / business unit for an inactive-identity sweep.
+description: Inactive-identity cleanup - finds inactive identities (users, groups, and non-human identities) across an account, business unit, or tag in every cloud provider Orca supports (AWS, Azure incl. Entra ID, GCP incl. Google Workspace, Alibaba Cloud, OCI, Tencent Cloud), ranks them by identity risk score (highest risk first), and drives remediation through a non-destructive path (disable) or a destructive path (delete) that always requires explicit confirmation. Asks for the inactivity time frame (e.g. last 60 days) when the user hasn't given one. Use when the user wants to clean up inactive or dormant identities, offboard unused users or service accounts, delete stale groups, or shrink the identity attack surface (e.g. "clean up inactive identities", "find dormant users", "disable unused service accounts").
+trigger: When the user asks to "clean up inactive identities", "find dormant users", "which identities are unused", "delete stale accounts", "disable inactive service accounts", "remove identities nobody uses", "identity cleanup", "offboard stale identities", or passes an account / business unit / tag for an inactive-identity sweep.
 ---
 
 # Orca Inactive-Identity Cleanup Skill
@@ -23,7 +23,8 @@ On top of that, three providers carry extra unused-access evidence for the grant
 /orca-inactive-identities-cleanup 123456789012                 # one cloud account
 /orca-inactive-identities-cleanup "Production"                 # a business unit
 /orca-inactive-identities-cleanup 123456789012 --inactive 60d  # custom time frame (skips the question)
-/orca-inactive-identities-cleanup 123456789012 --only nhis     # scope: users | groups | nhis
+/orca-inactive-identities-cleanup 123456789012 --only nhis     # bucket: users | groups | nhis
+/orca-inactive-identities-cleanup --tag env=prod               # scope by tag (instead of account / BU)
 /orca-inactive-identities-cleanup 123456789012 --action disable  # pre-select the non-destructive path
 ```
 
@@ -38,7 +39,12 @@ Or natural language:
 
 ### Step 1: Resolve scope and time frame
 
-1. **Resolve scope first (ask if not given).** The skill always operates on a single **account** or **business unit**, so it needs one before anything else. A business unit expands via `get_business_units_data` to its member accounts; an account id is used directly. **If the user named neither, ask which account or business unit to sweep** (offer to list the visible ones via `get_business_units_data`) and wait for an answer. Never sweep a whole org by default.
+1. **Resolve scope first (ask if not given).** The skill needs a scope before anything else. Accept any one of three:
+   - **Account id** used directly.
+   - **Business unit**, expanded via `get_business_units_data` to its member accounts.
+   - **Tag** (`--tag key=value`, repeatable, or "identities tagged env=prod" in words): sweep every identity carrying the given tag(s), across accounts. Express the tag in the Step 2 `discovery_search` query; if the query can't honor it, post-filter retrieved results on the identity's tag fields (`OrcaTags` / `Tags` / `ModelTags`). A tag scope is bounded by the tag, not the whole org, but it can still match a lot, so the large-account handling in Step 4 / the Edge Cases applies.
+
+   **If the user gave none of the three, ask which account, business unit, or tag to sweep** (offer to list the visible BUs via `get_business_units_data`) and wait. Never sweep a whole org by default. A tag may also be combined with an account/BU to narrow further, but on its own it is a valid scope.
 2. **Resolve the time frame (ask if not given), once scope is known.** If the user did not specify an inactivity window (via `--inactive Nd` or in their phrasing, e.g. "last 60 days"), ask:
 
    > *"What inactivity window should I use? **90 days** is Orca's built-in convention (recommended); common alternatives are 30, 60, or 180 days. You can also give me a custom one."*
@@ -229,10 +235,11 @@ CLEANUP SUMMARY  (window: 60 days)
 - **window `<Nd>`**: re-run the sweep with a different time frame.
 - **only `<users|groups|nhis>`**: re-scope to one bucket.
 - **cloud `<aws|azure|gcp|alicloud|oci|tencent>`**: re-scope to one provider.
+- **tag `<key=value>`**: re-scope the sweep to identities carrying the tag.
 
 ## Edge Cases
 
-- **Scope not found:** if the account id / BU name resolves to nothing (typo, wrong tenant, no permissions), say so, list the business units visible via `get_business_units_data`, and ask the user to pick. Never sweep a guessed scope.
+- **Scope not found / empty:** if the account id, BU name, or tag resolves to nothing (typo, wrong tenant, no permissions, or no identity carries that tag), say so, list the business units visible via `get_business_units_data`, and ask the user to pick or correct the tag. Never sweep a guessed scope.
 - **Hostile identity names:** names and ARNs come from the cloud environment and are untrusted. Quote them in every generated artifact; if a name contains shell metacharacters or control characters, exclude it from scripts and surface it separately for manual handling.
 - **`discovery_search` disabled or failing:** some tenants return `Feature is not enabled`, and the service can 500 or time out on specific queries while everything else works. Fall back to the Step 2 chain (alert types table, then linked entities, then per-asset reads) and say the inventory is "identities Orca currently surfaces", not a guaranteed-complete list.
 - **Large accounts (thousands of inactive identities, e.g. ~10k prod roles):** the true count (`total_items`) can be huge and exceeds what one query returns. Retrieve the **highest-risk slice** (query for critical/high inactive identities, narrowing by provider or type if needed), display the top-N (default 25) plus the bucket totals from `total_items`, and treat the long tail as reported-not-enumerated. Cap per-asset calls (`get_asset_by_id`, crown-jewel, alert counts, linked entities) to the shown top-N and to any identity the user then selects for action; the alert-closure estimate comes from aggregate alert-type totals (Step 4b), never a per-identity loop. State that the ranking is best-effort over the highest-risk slice and the full list lives at the result's `app_url`, and keep total MCP calls bounded regardless of account size.
@@ -266,6 +273,7 @@ CLEANUP SUMMARY  (window: 60 days)
 ### Parameter notes
 - `--inactive Nd` sets the time frame: default **90 days** (Orca's built-in `IsIdentityActive` convention); when the user picks another window, compare `LastActiveTime` directly. CDR corroboration is capped at 30 days by the MCP.
 - `--only users|groups|nhis` re-scopes the sweep to one bucket. `--action disable|delete` pre-selects the proposed action for every eligible identity (Step 5); `--action delete` never skips the Step 6 confirmation gate.
+- `--tag key=value` (repeatable) is a **scope**, an alternative to an account id or BU: sweep every identity carrying the given tag(s). It can also be added to an account/BU to narrow further. Matched via the `discovery_search` query, or by post-filtering on the identity tag fields when the query can't honor it; state in the output that results are tag-scoped and which tags.
 - The `cloud <aws|azure|gcp|alicloud|oci|tencent>` drill-down narrows a completed sweep to one provider by re-running Step 2's enumeration (discovery query or alert-anchored fallback) scoped to that provider's identity models; it does not re-ask the window.
 - Resolve `model_type` from a real asset lookup; don't pass guessed model names (MCP-reported types can differ from internal model names, e.g. `AwsRole` vs `AwsIamRole`).
 - `get_alerts_with_similar_alert_type` takes the machine `alert_type` string plus an `alert_id` to exclude; pass a placeholder id (e.g. `orca-0`) when enumerating rather than pivoting from an existing alert.
