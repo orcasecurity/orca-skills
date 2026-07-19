@@ -203,7 +203,7 @@ Write for a **cloud owner / CISO**, punchline first, plain English, no raw field
 
 1. **Headline:** the counts, the window, and the win. *"62 identities in acme-production have been inactive for 60+ days: 41 users, 6 groups, 15 NHIs across AWS, Azure, and GCP. 9 of them carry high or critical risk."*
 2. **Ranked table**, highest risk first: **# | Identity | Type | Provider | Last active | Risk | Proposed action**.
-3. **Quick wins:** the safe, high-impact subset (e.g. "these 12 have zero privileges and zero activity; disable today").
+3. **Quick wins (recommended starting point):** the safe, high-impact subset to act on first (e.g. "these 12 have zero privileges and zero activity; disable today"). The table above is ordered by risk so the riskiest dormant identities stay on top; this section is where to start acting.
 4. **Bottom line:** the single riskiest dormant identity + how much attack surface the full cleanup removes.
 5. **Window note (always):** state the time frame used and where it came from (user-chosen vs the 90d default), the 30-day CDR corroboration cap, that all asset data is as of the last completed scan, and that Alibaba/OCI/Tencent verdicts rest on the asset timestamps alone.
 
