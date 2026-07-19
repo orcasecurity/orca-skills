@@ -1187,7 +1187,7 @@ TOP RISK (highest first):
 QUICK WINS: 5 identities only ever read; swap to read-only today.
 
 RIGHT-SIZING SUMMARY  (engine window: ~90 days)
-  Found: 31 | Staged: 24 | Applied: 0 | Held: 0 | Skipped: 3
+  Found: 31 | Staged: 24 | Applied: 0 | Held: 0 | Skipped: 3 | JIT: 4
   Handed off: 12 inactive -> /orca-inactive-identities-cleanup
   Alerts:  ~18 open alerts close after the next scan (estimated)
 ═══════════════════════════════════════════════════════════════════

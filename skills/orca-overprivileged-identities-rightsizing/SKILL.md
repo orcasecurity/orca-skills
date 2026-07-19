@@ -13,8 +13,8 @@ Every unused permission is standing attack surface: if the identity is phished o
 **The core signal (verified in the Orca data model):** Orca's recommendation engine pre-computes a PoLP verdict per identity/grant from ~90 days of observed usage, stored as `RecommendationType` with exactly three values: **"Reduce Permissions"** (over-privileged — this skill's target), **"Inactive"** (dead weight — hand off to `/orca-inactive-identities-cleanup`), and **"PoLP Aligned"** (nothing to do). Where the verdict lives differs per provider:
 
 - **AWS (identity-level):** an `AwsEffectivePermissionsPolicy` per user/role carries the verdict plus a **generated least-privilege policy** (`Recommendation.recommended_policy` + `policy_diff`), `UsedServices` vs `EntityAuthorizedServices`, and the identity's `PermissionUsage` ratio (share of authorized services actually used). Exposed directly via `get_aws_effective_permissions_policy_on_asset`. The engine skips IAM **groups**.
-- **Azure (grant-level):** each `AzureIamRoleAssignment` carries an inline `Recommendation` with a typed action — `detach_role`, `read_only`, `just_in_time`, `scope_reduction`, `no_action_needed` — plus `LastUsageTime` and read/write action usage. Computed only where cloud logs are enabled for the subscription.
-- **GCP (grant-level):** a `GcpIamPolicyBindingRecommendation` per policy binding, same typed shape, linked to the user or service account. Feature-flag gated in some tenants.
+- **Azure (grant-level):** each `AzureIamRoleAssignment` carries **both** the normalized `RecommendationType` verdict and an inline `Recommendation` payload: a typed action (`detach_role`, `read_only`, `just_in_time`, `scope_reduction`, `no_action_needed`), an `action_needed` boolean, and read/write action usage with `LastUsageTime`. The typed actions roll up to the three verdicts (`detach_role` → "Inactive"; `read_only` / `just_in_time` / `scope_reduction` → "Reduce Permissions"; `no_action_needed` → "PoLP Aligned"). Computed only where cloud logs are enabled for the subscription.
+- **GCP (grant-level):** a `GcpIamPolicyBindingRecommendation` per policy binding, same normalized-verdict-plus-typed-payload shape, linked to the user or service account. Feature-flag gated in some tenants.
 
 **Provider coverage is a product fact:** Alibaba Cloud, OCI, and Tencent Cloud have **no PoLP recommendation layer** in Orca. This is a three-cloud skill (AWS, Azure, GCP); say so instead of improvising verdicts for other providers.
 
@@ -49,7 +49,7 @@ Or natural language:
 | Provider | Where the verdict lives | Target population |
 |----------|-------------------------|-------------------|
 | AWS | `EffectivePermissionsPolicy.RecommendationType == "Reduce Permissions"` on `AwsUser` / `AwsIamRole`; payload via `get_aws_effective_permissions_policy_on_asset` | Users and roles with recent activity but unused permissions. IAM groups are not covered by the engine (surface the group alert instead, see fallback) |
-| Azure | `RecommendationType == "Reduce Permissions"` / `Recommendation.action_needed == true` on the identity's `AzureIamRoleAssignment`s | Users, service principals, managed identities — aggregated per principal across their assignments |
+| Azure | `RecommendationType == "Reduce Permissions"` on the identity's `AzureIamRoleAssignment`s (the payload's `action_needed == true` corroborates; both fields live on the same asset, see the core-signal note above) | Users, service principals, managed identities — aggregated per principal across their assignments |
 | GCP | `Recommendation` on `GcpIamPolicyBindingRecommendation` (linked to `GcpUser` / `GcpIamServiceAccount` via the binding) | Users and service accounts — aggregated per identity across their bindings |
 
 > **Don't assume one query returns every identity.** `discovery_search` returns a bounded, risk-ordered result set (read `total_items` for the true count and the result's `app_url` for the full list). On large accounts retrieve the highest-risk slice, act on that top slice, and report `total_items` as the real total — best-effort ordering of the highest-risk slice, not a global sort of all N.
@@ -70,7 +70,7 @@ The recommendation itself says *what kind* of right-sizing applies. Route by the
 | `read_only` (Azure/GCP) or AWS `recommended_policy` with only read actions | Identity only ever reads but holds write access | Swap to a read-only role / apply the generated read-only policy |
 | `scope_reduction` (Azure/GCP) | Grant is broader than where actions actually happen | Re-scope the assignment/binding to the recommended narrower scope (`additional_data.scope_analysis.recommended_scope`) |
 | AWS "Reduce Permissions" with a `recommended_policy` | Engine generated a least-privilege policy from observed usage | Stage that policy; `policy_diff` shows exactly what gets removed |
-| `just_in_time` (Azure/GCP) | Used, but rarely | Flag as a JIT-conversion candidate and link onward to `/orca-ciem-jit-candidates` — don't strip permissions that are legitimately (if rarely) used |
+| `just_in_time` (Azure/GCP) | Used, but rarely | Flag as a JIT-conversion candidate: recommend time-bound, on-request access instead of a trim — don't strip permissions that are legitimately (if rarely) used |
 | "Inactive" / `detach_role` | Not over-privileged — unused entirely | **Hand off**: list in one line and point to `/orca-inactive-identities-cleanup`; never duplicate its disable/delete flow here |
 | "PoLP Aligned" / `no_action_needed` | Usage matches grants | Count it in the summary as healthy; no action |
 
@@ -113,7 +113,7 @@ Present the ranked list with the proposed change per identity; the user can stag
 
 Applying a trimmed policy can break running workloads, so **apply is treated as destructive even though a rollback exists**. Two gates, both mandatory, every time:
 
-1. **Evidence-based safety check.** Replay the identity's actual recent activity against the proposed change — exactly what `/orca-ciem-safe-rollout` does, so invoke it (or inline its logic): pull `get_cdr_events_grouped_by_event_name` for the identity, test each observed action against the **removed set**, and report would-deny actions with count and last-seen. **0 would-deny → safe to apply; ≥1 → hold**, re-include those actions or stage-first instead. State the CDR window honestly: this MCP caps lookback at 30 days, the engine's verdict covers ~90; a quarterly job outside both windows is the known blind spot — recommend a grace period watching for denials on anything business-critical.
+1. **Evidence-based safety check.** Replay the identity's actual recent activity against the proposed change: pull `get_cdr_events_grouped_by_event_name` for the identity, test each observed action against the **removed set**, and report would-deny actions with count and last-seen. **0 would-deny → safe to apply; ≥1 → hold**, re-include those actions or stage-first instead. State the CDR window honestly: this MCP caps lookback at 30 days, the engine's verdict covers ~90; a quarterly job outside both windows is the known blind spot — recommend a grace period watching for denials on anything business-critical.
 2. **Explicit confirmation naming the action.** Restate exactly which identities change, what they lose (e.g. "removes 38 unused services from deploy-runner"), and the rollback. Require an affirmative that names the action ("yes, apply to these 3"); a bulk "do everything" never implicitly includes apply. Show blast radius first for roles: `get_linked_entities_mapping` for what assumes/uses the identity (instances, functions, trust relationships).
 
 ### Step 7: Execute, verify, summarize
@@ -136,22 +136,23 @@ Write for a **cloud owner / CISO**, punchline first, plain English, no raw field
 1. **Headline:** counts and the win. *"31 identities in acme-production hold permissions they haven't used in ~90 days: 9 users, 22 NHIs across AWS, Azure, and GCP. 7 carry high or critical risk; right-sizing them removes ~840 unused permissions."*
 2. **Ranked table**, highest risk first: **# | Identity | Type | Provider | Uses | Recommendation | Risk | Proposed change** (Uses = "3 of 41 services" style).
 3. **Quick wins:** the safe, high-impact subset (e.g. "these 5 only ever read; swapping to read-only removes write access nobody uses").
-4. **Handed off:** one line for "Inactive" verdicts → `/orca-inactive-identities-cleanup`, and JIT candidates → `/orca-ciem-jit-candidates`.
+4. **Handed off / JIT:** one line for "Inactive" verdicts → `/orca-inactive-identities-cleanup`, and the JIT-conversion candidates (counted inside Found, see the summary).
 5. **Bottom line:** the single riskiest over-privileged identity + total standing privilege removed by the full plan.
 6. **Window note (always):** the engine's ~90-day usage window, the 30-day CDR corroboration cap, that all data is as of the last completed scan, and that AliCloud/OCI/Tencent carry no PoLP signal.
 
 ### Right-sizing summary (mandatory, after any action or at session end)
 
-The `Alerts:` line is **mandatory on every run**, sweep-only included, using the Step 4b estimate.
+The `Alerts:` line is **mandatory on every run**, sweep-only included, using the Step 4b estimate. **The buckets must reconcile:** Staged + Applied + Held + Skipped + JIT always sums to Found (JIT candidates carry the "Reduce Permissions" verdict, so they are part of Found); inactive hand-offs sit **outside** Found — they are not over-privileged, just dead weight for the other skill.
 
 ```
 RIGHT-SIZING SUMMARY  (engine window: ~90 days)
   Found:      31 over-privileged identities (9 users, 22 NHIs)
-  Staged:     24 (artifacts generated, nothing applied)
+  Staged:     20 (artifacts generated, nothing applied)
   Applied:    3 (safety-checked, explicitly confirmed, verified via cloud CLI)
   Held:       1 (safety check found 2 would-deny actions, last used 6d ago)
-  Skipped:    3 (1 provider-managed, 1 vendor role -> review, 1 break-glass -> JIT)
-  Handed off: 12 inactive -> /orca-inactive-identities-cleanup; 4 JIT -> /orca-ciem-jit-candidates
+  Skipped:    3 (1 provider-managed, 1 vendor role -> review, 1 break-glass)
+  JIT:        4 (rarely used -> proposed for just-in-time conversion, no trim)
+  Handed off: 12 inactive -> /orca-inactive-identities-cleanup (outside Found)
   Alerts:     ~18 open alerts on these identities should close after the next
               scan (exact for the shown set, rest estimated from alert-type totals)
 ```
@@ -169,7 +170,7 @@ RIGHT-SIZING SUMMARY  (engine window: ~90 days)
 - **Large accounts:** retrieve the highest-risk slice, display top-N + `total_items` bucket totals, cap per-asset calls to the shown set, derive the alert estimate from aggregates. Total MCP calls stay bounded regardless of account size.
 - **Empty AWS effective-permissions payload:** `get_aws_effective_permissions_policy_on_asset` can come back empty for group-derived permissions; fall back to the identity's attached policies + observed events and lower the stated confidence.
 - **AWS IAM groups:** the engine generates no group recommendation. Surface `aws_group_with_unused_services` alerts as "review with owner"; right-size the member users instead.
-- **Admin identities:** the engine emits a policy scoped to used actions even for admins — the highest-value trims. But cutting admin can still leave escalation paths (a stray `iam:PassRole` survives the trim); for admin-tier identities suggest `/orca-ciem-privesc-paths` as the follow-up.
+- **Admin identities:** the engine emits a policy scoped to used actions even for admins — the highest-value trims. But cutting admin can still leave escalation paths (a stray `iam:PassRole` survives the trim); for admin-tier identities recommend a privilege-escalation path review of the retained permissions as the follow-up.
 - **Recency blind spot:** quarterly/annual jobs outside the ~90d engine window and 30d CDR window won't appear as used. The safety check catches the 30-day slice; for anything business-critical recommend stage-first plus a grace period watching for denials, never a same-day bulk apply.
 - **Resource/condition tightening:** if the recommended policy keeps an action but narrows its resource or condition, flag "review" rather than hard-safe — action-level replay can't fully prove resource-level equivalence.
 - **SCPs / permission boundaries:** the effective-permissions engine works at the identity-policy level; org-level guardrails aren't re-simulated here. Note it when the account is part of an AWS Organization.
@@ -188,6 +189,7 @@ RIGHT-SIZING SUMMARY  (engine window: ~90 days)
 | `get_asset_by_name` / `get_asset_by_id` | Resolve identities; read recommendation fields, `PermissionUsage`, provider-managed flags, `RiskLevel` |
 | `get_alerts_with_similar_alert_type` | AWS fallback enumeration via `aws_user_with_unused_services` / `aws_role_with_unused_services` / `aws_group_with_unused_services`; admin-family corroboration |
 | `get_cdr_events_grouped_by_event_name` / `search_cdr_events` | The Step 6 safety replay: what the identity actually invoked (30-day cap) |
+| `get_alert` / `get_asset_by_alert_id` | Alert-driven entry: read the recommendation payload (`IamRecommendedPolicy`) off an over-privilege alert and resolve its identity |
 | `get_asset_alerts_count_grouped_by_risk_level` / `get_asset_related_alerts_summary` | Per-asset open-alert counts, **top-N only** |
 | `get_asset_crown_jewel_info` / `get_other_secret_occurrences` | Ranking bumps: crown-jewel reach, exposed credentials |
 | `get_linked_entities_mapping` / `get_linked_entities_data` | Apply blast radius: what assumes/uses the identity |
@@ -207,4 +209,4 @@ RIGHT-SIZING SUMMARY  (engine window: ~90 days)
 4. **The confirmation gate is non-negotiable.** No phrasing ("just apply all the recommendations") skips Step 6; restate, show would-deny evidence and blast radius, get the explicit yes.
 5. **The right-sizing summary is mandatory** on every run, including read-only ones; "found and staged, nothing applied" is a valid summary.
 6. **Three-cloud honesty:** AWS, Azure, GCP carry the PoLP verdict; treat any other provider as unsupported and say so instead of improvising.
-7. **Stay in scope, link onward:** single-identity permission deep-dives go to `/orca-identity-review`; the pre-apply gate is `/orca-ciem-safe-rollout` (invoked, not duplicated); JIT conversions go to `/orca-ciem-jit-candidates`; inactive identities go to `/orca-inactive-identities-cleanup`. This skill sweeps breadth: find the over-privileged, stage the trim, gate the apply, report what changed.
+7. **Stay in scope, link onward:** single-identity permission deep-dives go to `/orca-identity-review`; inactive identities go to `/orca-inactive-identities-cleanup`. The CDR safety replay (Step 6) and JIT-conversion proposals (Step 3) are handled inline. This skill sweeps breadth: find the over-privileged, stage the trim, gate the apply, report what changed.
