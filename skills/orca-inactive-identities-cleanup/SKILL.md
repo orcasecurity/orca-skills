@@ -38,13 +38,13 @@ Or natural language:
 
 ### Step 1: Resolve scope and time frame
 
-1. **Resolve scope.** A **business unit** expands via `get_business_units_data` to its member accounts; an **account id** is used directly.
-2. **Resolve the time frame (ask if not given).** If the user did not specify an inactivity window (via `--inactive Nd` or in their phrasing, e.g. "last 60 days"), ask before sweeping:
+1. **Resolve scope first (ask if not given).** The skill always operates on a single **account** or **business unit**, so it needs one before anything else. A business unit expands via `get_business_units_data` to its member accounts; an account id is used directly. **If the user named neither, ask which account or business unit to sweep** (offer to list the visible ones via `get_business_units_data`) and wait for an answer. Never sweep a whole org by default.
+2. **Resolve the time frame (ask if not given), once scope is known.** If the user did not specify an inactivity window (via `--inactive Nd` or in their phrasing, e.g. "last 60 days"), ask:
 
    > *"What inactivity window should I use? **90 days** is Orca's built-in convention (recommended); common alternatives are 30, 60, or 180 days. You can also give me a custom one."*
 
    - **Default 90d** maps directly onto the pre-computed `IsIdentityActive: false` verdict (the strongest, scan-time signal).
-   - **Any other window** is evaluated by comparing the asset's `LastActiveTime` against the cutoff. Note in the output that a shorter window (e.g. 30d) flags more identities but with more false positives (vacations, quarterly jobs), and a longer one (180d) is more conservative.
+   - **Any positive window is accepted** (30d, 60d, 180d, 365d, and so on, there is no fixed list). It is evaluated by comparing the asset's `LastActiveTime` against the cutoff, and `LastActiveTime` reaches back years, so long windows work fine. A shorter window (e.g. 30d) flags more identities but with more false positives (vacations, quarterly jobs); a longer one (180d+) is more conservative. State this trade-off in the output. The only thing a custom window cannot decide is an identity with **no `LastActiveTime` at all** (see the no-activity-fields edge case), which stays in the "no signal" bucket regardless of window.
    - Never re-ask on drill-downs or follow-up actions in the same session; the chosen window sticks until the user changes it.
 
 ### Step 2: Enumerate identities
@@ -161,7 +161,9 @@ Default recommendation is **disable first, delete after a grace period** (sugges
 
 For AWS, Azure, and GCP generate exact CLI/Terraform artifacts; for Alibaba, OCI, and Tencent generate the CLI steps at mechanism level and mark them for review before running (less battle-tested surface).
 
-Root accounts and provider-managed identities (per the Step 3 table) never enter this table; they were already excluded. **Vendor and platform roles** (third-party integration roles like security scanners or cost tools, and cross-account access roles) may pass the inactivity test yet be load-bearing: used rarely but critically, or exercised from another account so their activity is invisible here. Tag them "review with owner" instead of quick-win, and lean on the blast-radius links before proposing anything destructive.
+Root accounts and provider-managed identities (per the Step 3 table) never enter this table; they were already excluded. **Vendor and platform roles** (third-party integration roles like security scanners or cost tools, and cross-account access roles) may pass the inactivity test yet be load-bearing: used rarely but critically, or exercised from another account so their activity is invisible here. Tag them **"review with owner"** and lean on the blast-radius links before proposing anything destructive.
+
+> **"Review with owner" means:** the identity looks inactive here but should not be auto-disabled or auto-deleted, because its real usage may live outside this account's view (cross-account assume-role) or it is load-bearing but rarely exercised. Confirm with whoever owns that integration or resource before removing it, rather than acting on the sweep alone. Surface these separately from the quick wins.
 
 ### Step 6: Confirmation gate (destructive actions)
 
