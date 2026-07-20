@@ -1,7 +1,7 @@
 ---
 name: orca-overprivileged-identities-rightsizing
-description: Over-privileged identity right-sizing - finds identities holding more permissions than they use, according to Orca's pre-computed PoLP (Principle of Least Privilege) recommendations, across an account or business unit in AWS, Azure, and GCP; ranks them by identity risk score (highest risk first); and drives right-sizing through a non-destructive path (stage the change as ready-to-run artifacts) or a destructive path (apply the change) that always requires an evidence-based safety check plus explicit confirmation. Use when the user wants to reduce excess permissions, right-size roles or users, act on least-privilege recommendations, or shrink standing privilege (e.g. "right-size over-privileged identities", "apply PoLP recommendations", "trim unused permissions").
-trigger: When the user asks to "right-size over-privileged identities", "reduce excess permissions", "apply least-privilege / PoLP recommendations", "which identities have permissions they don't use", "trim this role's permissions", "act on Orca's IAM recommendations", or passes an account / business unit for an over-privilege sweep.
+description: Over-privileged identity right-sizing - finds identities holding more permissions than they use, according to Orca's pre-computed PoLP (Principle of Least Privilege) recommendations, across an account, business unit, or tag in AWS, Azure, and GCP; ranks them by identity risk score (highest risk first); and drives right-sizing through a non-destructive path (stage the change as ready-to-run artifacts) or a destructive path (apply the change) that always requires an evidence-based safety check plus explicit confirmation. Use when the user wants to reduce excess permissions, right-size roles or users, act on least-privilege recommendations, or shrink standing privilege (e.g. "right-size over-privileged identities", "apply PoLP recommendations", "trim unused permissions").
+trigger: When the user asks to "right-size over-privileged identities", "reduce excess permissions", "apply least-privilege / PoLP recommendations", "which identities have permissions they don't use", "trim this role's permissions", "act on Orca's IAM recommendations", or passes an account / business unit / tag for an over-privilege sweep.
 ---
 
 # Orca Over-Privileged Identity Right-Sizing Skill
@@ -23,7 +23,8 @@ Every unused permission is standing attack surface: if the identity is phished o
 ```
 /orca-overprivileged-identities-rightsizing 123456789012          # one cloud account
 /orca-overprivileged-identities-rightsizing "Production"          # a business unit
-/orca-overprivileged-identities-rightsizing 123456789012 --only nhis    # scope: users | nhis
+/orca-overprivileged-identities-rightsizing --tag env=prod        # scope by tag (instead of account / BU)
+/orca-overprivileged-identities-rightsizing 123456789012 --only nhis    # bucket: users | nhis
 /orca-overprivileged-identities-rightsizing 123456789012 --action stage # pre-select the non-destructive path
 /orca-overprivileged-identities-rightsizing 123456789012 --cloud aws    # one provider
 ```
@@ -39,7 +40,12 @@ Or natural language:
 
 ### Step 1: Resolve scope
 
-1. **Resolve scope.** A **business unit** expands via `get_business_units_data` to its member accounts; an **account id** is used directly.
+1. **Resolve scope first (ask if not given).** Accept any one of three:
+   - **Account id**, used directly.
+   - **Business unit**: `get_business_units_data` returns the BU's saved filter (accounts, providers, tags), not a ready-made account list — derive the member accounts from that filter before sweeping.
+   - **Tag** (`--tag key=value`, repeatable, or "identities tagged env=prod" in words): sweep every identity carrying the tag(s), across accounts. Express the tag in the Step 2 `discovery_search` query; if the query can't honor it, post-filter retrieved results on the identity's tag fields.
+
+   **If the user gave none of the three, ask which account, business unit, or tag to sweep** (offer to list the visible BUs) and wait. Never sweep a whole org by default. A tag may be combined with an account/BU to narrow further.
 2. **No time-frame question.** Unlike the inactive-identities sweep, the usage window is baked into Orca's recommendation engine (~90 days of observed activity at scan time); there is nothing to ask. State the window in the output instead. If the user asks for a different window, explain that the pre-computed verdict is fixed and offer CDR corroboration (30-day cap on this MCP) as the only adjustable lens.
 
 ### Step 2: Enumerate over-privileged identities
@@ -84,6 +90,8 @@ Exclusions applied automatically (never staged or applied, reasons verified in t
 - **Break-glass / DR identities** — over-provisioned by design; recommend JIT conversion, never a trim.
 - **Vendor / cross-account / cross-tenant identities** — third-party integration roles (scanners, cost tools), AWS cross-account access roles, and Azure cross-tenant principals (Lighthouse delegations, guest/B2B identities) may be exercised from another account or tenant, so their usage is invisible to the engine here. Tag "review with owner"; a trim based on invisible usage is how outages happen.
 - **No recommendation data:** absence of a recommendation is never evidence of over-privilege. Azure without cloud logs enabled, GCP tenants without the feature flag, and all AliCloud/OCI/Tencent identities carry no verdict — mark "no PoLP signal available" and never propose action.
+
+> **"Review with owner" means:** the identity looks over-privileged here, but the trim must be confirmed with whoever owns that integration or workload, because its real usage may live outside this account's view. Surface these separately from the quick wins; never fold them into a bulk action.
 
 ### Step 4: Rank by identity risk score
 
@@ -139,7 +147,7 @@ Write for a **cloud owner / CISO**, punchline first, plain English, no raw field
 
 1. **Headline:** counts and the win. *"31 identities in acme-production hold permissions they haven't used in ~90 days: 9 users, 22 NHIs across AWS, Azure, and GCP. 7 carry high or critical risk; right-sizing them removes ~840 unused permissions."*
 2. **Ranked table**, highest risk first: **# | Identity | Type | Provider | Uses | Recommendation | Risk | Proposed change** (Uses = "3 of 41 services" style).
-3. **Quick wins:** the safe, high-impact subset (e.g. "these 5 only ever read; swapping to read-only removes write access nobody uses").
+3. **Quick wins (recommended starting point):** the safe, high-impact subset to act on first (e.g. "these 5 only ever read; swapping to read-only removes write access nobody uses").
 4. **Handed off / JIT:** one line for "Inactive" verdicts → `/orca-inactive-identities-cleanup`, and the JIT-conversion candidates (counted inside Found, see the summary).
 5. **Bottom line:** the single riskiest over-privileged identity + total standing privilege removed by the full plan.
 6. **Window note (always):** the engine's ~90-day usage window, the 30-day CDR corroboration cap, that all data is as of the last completed scan, and that AliCloud/OCI/Tencent carry no PoLP signal.
