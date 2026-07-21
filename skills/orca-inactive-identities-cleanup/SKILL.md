@@ -10,7 +10,7 @@ Answers the question: **"Which of our identities are dead weight, and how do we 
 
 Every identity that exists but is never used is pure attack surface: it can be phished, its keys can leak, and nobody notices when it starts doing things. This skill sweeps an account or business unit for inactive **users, groups, and non-human identities (NHIs)**, ranks them by identity risk score, and walks the user through cleanup with a **non-destructive path (disable)** and a **destructive path (delete)** that is always gated behind explicit confirmation.
 
-**The core signal (verified in the Orca data model):** every identity Orca covers carries a pre-computed activity verdict on the asset itself: `LastActiveTime` (when it last did anything) and `IsIdentityActive` (Orca's uniform **90-day** activity convention, computed at scan time). This holds across **all six supported providers: AWS, Azure (incl. Entra ID), GCP (incl. Google Workspace), Alibaba Cloud, OCI, and Tencent Cloud**. Read the verdict off the asset first; CDR log replay is corroboration, never the primary source.
+**The core signal:** every identity Orca covers carries a pre-computed activity verdict on the asset itself: `LastActiveTime` (when it last did anything) and `IsIdentityActive` (Orca's uniform **90-day** activity convention, computed at scan time). This holds across **all six supported providers: AWS, Azure (incl. Entra ID), GCP (incl. Google Workspace), Alibaba Cloud, OCI, and Tencent Cloud**. Read the verdict off the asset first; CDR log replay is corroboration, never the primary source.
 
 On top of that, three providers carry extra unused-access evidence for the grant side:
 - **AWS:** `AccessKeyNLastUsedDate` per key, `PermissionUsage` scalar, Access Analyzer unused-access findings.
@@ -41,10 +41,12 @@ Or natural language:
 
 1. **Resolve scope first (ask if not given).** The skill needs a scope before anything else. Accept any one of three:
    - **Account id** used directly.
-   - **Business unit**: `get_business_units_data` returns the BU's saved filter (accounts, providers, tags), not a ready-made account list, so derive the member accounts from that filter before sweeping.
+   - **Business unit**: `get_business_units_data` returns the BU's saved filter (accounts, providers, tags), not a ready-made account list, so derive the member accounts from that filter before sweeping. The response is **large, unpaginated, and has no name filter** (100K+ chars, routinely over the token limit and dumped to a file); grep it for the BU name with a **narrow context window** (~60-120 chars each side, wider matches can be silently truncated by the harness) instead of reading the whole blob.
    - **Tag** (`--tag key=value`, repeatable, or "identities tagged env=prod" in words): sweep every identity carrying the given tag(s), across accounts. Express the tag in the Step 2 `discovery_search` query; if the query can't honor it, post-filter retrieved results on the identity's tag fields (`OrcaTags` / `Tags` / `ModelTags`). A tag scope is bounded by the tag, not the whole org, but it can still match a lot, so the large-account handling in Step 4 / the Edge Cases applies.
 
-   **If the user gave none of the three, ask which account, business unit, or tag to sweep** (offer to list the visible BUs via `get_business_units_data`) and wait. Never sweep a whole org by default. A tag may also be combined with an account/BU to narrow further, but on its own it is a valid scope.
+   **Disambiguating an unclear scope, in this order:** an all-digits string is an **account id**; otherwise check **business-unit names** first (via `get_business_units_data`) before assuming a tag; treat it as a **tag** only if it's `key=value` or the user said "tag". Guessing a tag first wastes calls, a non-existent tag field returns a 400. **If the user gave none of the three, ask** which account, business unit, or tag to sweep (offer to list the visible BUs) and wait. Never sweep a whole org by default. A tag may also be combined with an account/BU to narrow further, but on its own it is a valid scope.
+
+   **Confirm scope size before sweeping.** Once resolved, if the scope expands to **more than 3 accounts or spans more than 2 cloud providers**, show the breakdown (accounts, providers, rough count from `total_items`) and confirm how to prioritize before sweeping. A named BU is often bigger than the user expects, and "never sweep a whole org" doesn't cover "this BU is larger than you think".
 2. **Resolve the time frame (ask if not given), once scope is known.** If the user did not specify an inactivity window (via `--inactive Nd` or in their phrasing, e.g. "last 60 days"), ask:
 
    > *"What inactivity window should I use? **90 days** is Orca's built-in convention (recommended); common alternatives are 30, 60, or 180 days. You can also give me a custom one."*
@@ -55,7 +57,7 @@ Or natural language:
 
 ### Step 2: Enumerate identities
 
-**Primary path: `discovery_search` (if enabled).** The cross-cloud identity model set is verified against the Orca data model; query identities with `IsIdentityActive = false` (or fetch and post-filter on `LastActiveTime` for custom windows) across:
+**Primary path: `discovery_search` (if enabled).** Query identities with `IsIdentityActive = false` (or fetch and post-filter on `LastActiveTime` for custom windows) across:
 
 > **Don't assume one query returns every identity.** `discovery_search` returns a bounded, risk-ordered result set (read `total_items` for the true count and the result's `app_url` for the full list in the Orca app). A small account comes back whole; a large one (hundreds to ~10k) does not, and that is fine for a risk-first cleanup: retrieve the highest-risk inactive identities (narrow by risk band or provider only if the account is large enough to need it), act on that top slice, and report `total_items` as the real total. Rank within what you retrieved and call it a best-effort ordering of the highest-risk slice, not a global sort of all N. This holds regardless of the current result limit, if the surface later paginates or raises the cap, just retrieve more; the approach is unchanged. Enumerate across:
 
@@ -70,7 +72,7 @@ Or natural language:
 
 **Fallbacks**, in order (`discovery_search` may return `Feature is not enabled`, and it can also fail transiently with 5xx errors while the asset and alert surfaces keep working; fall back on either signal):
 
-1. **Alert-anchored enumeration.** Orca ships built-in inactive-identity alert rules; every alert of these types marks an inactive identity, so `get_alerts_with_similar_alert_type` on them rebuilds the inventory. Verified machine alert types (pass these exact strings):
+1. **Alert-anchored enumeration.** Orca ships built-in inactive-identity alert rules; every alert of these types marks an inactive identity, so `get_alerts_with_similar_alert_type` on them rebuilds the inventory. Machine alert types (pass these exact strings):
 
    | Provider | Inactive users | Inactive groups | Inactive NHIs / roles |
    |----------|----------------|-----------------|------------------------|
@@ -83,11 +85,11 @@ Or natural language:
 
    Unused-credential types (`aws_unused_aws_credentials`, `aws_credentials_older_than_90_days`, `oci_iam_credentials_unused_for_45_days`, `tencent_user_access_key_not_rotated_90_days`) corroborate and partially cover the gaps.
 
-   Each returned alert embeds the identity asset, its `LastActiveTime`/`CreationTime`, attached policies, and Orca's own `RemediationCli` / `RemediationConsole` steps (verified live); reuse those remediation steps when generating artifacts for the less-battle-tested providers (Alibaba, OCI, Tencent).
+   Each returned alert embeds the identity asset, its `LastActiveTime`/`CreationTime`, attached policies, and Orca's own `RemediationCli` / `RemediationConsole` steps; reuse those remediation steps when generating artifacts for the less-battle-tested providers (Alibaba, OCI, Tencent).
 
-   **Caveats of this path:** the rules bake in Orca's 90d convention, so a custom window can't be honored here; dismissed/suppressed alerts hide their identities; Tencent has no inactive-identity rules and only AWS has role-inactivity rules. State that the inventory is "identities Orca currently alerts on" and cover the gaps with path 3.
+   **Caveats of this path:** the rules bake in Orca's 90d convention, so a custom window can't be honored here; dismissed/suppressed alerts hide their identities; Tencent has no inactive-identity rules and only AWS has role-inactivity rules. It also returns a **small, unpaginated page** (`total_items` far exceeds the handful of rows returned, e.g. 63 total but 5 returned) and isn't scoped per tenant, so it's a **spot-check, not complete enumeration** in multi-tenant orgs. State that the inventory is "identities Orca currently alerts on" and cover the gaps with path 3.
 2. `get_linked_entities_mapping` on key compute assets to walk to workload identities (instance to instance profile to role).
-3. `get_asset_by_name` per identity or name pattern, reading `IsIdentityActive` / `LastActiveTime` off each asset (works whenever the serving layer is up, verified during a discovery outage).
+3. `get_asset_by_name` per identity or name pattern, reading `IsIdentityActive` / `LastActiveTime` off each asset (works whenever the serving layer is up, including when discovery is down).
 
 **Classify each identity** into the three buckets this skill acts on:
 - **Human users** (console password, MFA, interactive sessions).
@@ -96,7 +98,9 @@ Or natural language:
 
 > **Model-type caveat:** `get_asset_by_name` / `get_asset_by_id` reject unknown `model_type` values (e.g. `AwsIamUser` errors). Run a default `Inventory` lookup first and read the asset's real `type` field rather than guessing; MCP-reported names can differ slightly from internal model names (e.g. `AwsRole` vs `AwsIamRole`).
 
-> **Never trust the query's "inactive" wording, re-check the field.** A natural-language `discovery_search` for "inactive X" is unreliable both ways (verified live): it returns empty for some providers even when inactive identities exist, and it can include *active* identities in the results. Query broadly (by identity type) and decide inactivity yourself from each asset's `IsIdentityActive` / `LastActiveTime`, never from the fact that an item came back.
+> **Never trust the query's "inactive" wording, re-check the field.** A natural-language `discovery_search` for "inactive X" is unreliable both ways: it returns empty for some providers even when inactive identities exist, and it can include *active* identities in the results. Query broadly (by identity type) and decide inactivity yourself from each asset's `IsIdentityActive` / `LastActiveTime`, never from the fact that an item came back.
+
+> **Working with `discovery_search` results in practice** (both are common): (1) **Results routinely exceed the tool's token limit and get dumped to a file.** When that happens, don't try to read the whole file, grep/`jq` it for just the fields you need: `Name`, `IsIdentityActive`, `LastActiveTime`, `RiskLevel`, `Type` (and `total_items` for the count). This file-mining is the biggest source of wasted calls if you read blobs whole. (2) **Phrasing changes results.** For Azure, "users in **tenant** X" returns data where "users in **account** X" comes back empty; if a scoped query is unexpectedly empty, retry with tenant/provider phrasing before concluding there's nothing there.
 
 ### Step 3: Decide what is actually inactive
 
@@ -116,7 +120,7 @@ Corroboration on top, where available:
 
 Exclusions applied automatically:
 - **Root / tenant-owner accounts:** never disable/delete candidates, in any cloud. AWS `<root_account>` regularly tops the inactive list with a high risk score; surface it separately with its own fixes (remove root access keys, enforce MFA, stop using root day-to-day) and keep it out of every bulk action.
-- **Provider-managed / service / built-in identities:** these show up "inactive" constantly but are owned or auto-created by the cloud (or a first-party vendor). Never disable/delete candidates, removing them breaks services, org management, or SSO. Detect per provider (fields verified against the Orca data model); prefer the boolean over name-matching where one exists:
+- **Provider-managed / service / built-in identities:** these show up "inactive" constantly but are owned or auto-created by the cloud (or a first-party vendor). Never disable/delete candidates, removing them breaks services, org management, or SSO. Detect per provider, preferring the boolean over name-matching where one exists:
 
   | Provider | Exclude when | Notes |
   |----------|--------------|-------|
@@ -134,16 +138,18 @@ Exclusions applied automatically:
 - **No activity fields:** absence of `IsIdentityActive` / `LastActiveTime` is never evidence of inactivity, and several types this skill enumerates carry no activity signal at all, so they can't be judged by any window and must be marked "no inactivity signal available" (never auto-proposed):
   - **AWS SSO identities** (`AwsSsoUser`, `AwsSsoGroup`, `AwsSsoPermissionSet`) have no activity fields, handle via Identity Center, don't infer inactivity here.
   - **Tencent CAM roles** (`TencentCloudCamRole`) and **OCI dynamic groups** (`OciIamDynamicGroup`) have none.
-  - **AliCloud RAM roles** carry no activity signal (verified live: every role in a scanned AliCloud account had `IsIdentityActive: null` and no `LastActiveTime`).
+  - **AliCloud RAM roles** carry no activity signal (`IsIdentityActive: null`, no `LastActiveTime`).
   - **GCP** users only carry activity data when the Google Workspace integration is on; **OCI IdP-federated users** may lack the fields entirely; GCP service-account *keys* have `LastActiveTime` but no `IsIdentityActive`.
   - **Inventory-only types** (Linode, Anthropic, Vercel users) never have them.
 
   For roles/NHIs with no signal, lean on the alert-anchored path, but note Alibaba/OCI have inactive-*user* rules and no inactive-*role* rules, so a role with neither an activity field nor an alert simply can't be swept, say so rather than guessing.
 
+  **Sample before concluding, per type and tenant.** Beyond the fixed list above, an entire tenant's telemetry integration can be off (e.g. Azure sign-in logs not configured), so a normally-populated type comes back with no activity field for *every* identity. Don't confirm this one identity at a time (it burns calls); check **3-5 identities of a type**, and if none carry the field, mark the whole type-for-that-tenant "no inactivity signal available" and stop sampling.
+
 ### Step 4: Rank by identity risk score
 
 Per acceptance: **highest risk first**. Rank on the **inline** `RiskLevel` / `OrcaScore` that `discovery_search` returns with each result, so ranking the retrieved slice costs zero extra calls. **Never loop `get_asset_by_id` over the candidate set** (a prod account can hold ~10k inactive roles, that would be ~10k calls); reserve per-asset lookups for the **top-N you actually display** (default 25). On large accounts you rank the highest-risk slice you retrieved (see Step 2's note), not a global sort of every identity.
-- Primary sort key: the inline **Orca risk score / `RiskLevel`** from the sweep payload. This is a composite Orca already computes from privilege, crown-jewel status, and alert pressure, so a dormant admin surfaces near the top on its base score alone (verified live: a dormant admin role and a crown-jewel user ranked top with no manual bumps). Rely on it as the ranking input, don't assume the bumps below are what lifts high-risk identities into view.
+- Primary sort key: the inline **Orca risk score / `RiskLevel`** from the sweep payload. This is a composite Orca already computes from privilege, crown-jewel status, and alert pressure, so a dormant admin surfaces near the top on its base score alone. Rely on it as the ranking input, don't assume the bumps below are what lifts high-risk identities into view.
 - **Bumps (refinements/annotations on the displayed top-N):** confirm and label privileged/admin-while-dormant, exposed credentials (`get_other_secret_occurrences`), crown-jewel reach (`get_asset_crown_jewel_info`), open alert pressure (`get_asset_alerts_count_grouped_by_risk_level`). If a bump reveals an identity the base score under-ranked, pull it up and say why. To guard the tail on large accounts, prefer querying the highest-risk / privileged inactive identities in Step 2 rather than trusting one unfiltered slice.
 
 ### Step 4b: Estimate alerts that will close (mandatory, scale-safe)
@@ -176,6 +182,8 @@ For AWS, Azure, and GCP generate exact CLI/Terraform artifacts; for Alibaba, OCI
 
 Root accounts and provider-managed identities (per the Step 3 table) never enter this table; they were already excluded. **Vendor and platform roles** (third-party integration roles like security scanners or cost tools, and cross-account access roles) may pass the inactivity test yet be load-bearing: used rarely but critically, or exercised from another account so their activity is invisible here. Tag them **"review with owner"** and lean on the blast-radius links before proposing anything destructive.
 
+**Prefer an evidence signal over the name.** For AWS, read the role's trust (assume-role) policy and flag it review-with-owner when an **external account or principal** can assume it, that cross-account trust is the concrete reason its activity is invisible to this account's scan, and it's more rigorous than matching a prefix. Azure already exposes this via `AppOwnerOrganizationId` (first-party / external owner). Fall back to name patterns (e.g. `CLDZE-*` for CloudZero, `*-OrcaSecurityRole-*`, `StackSet-*`, `drs-*`) only when the trust policy isn't conclusive.
+
 > **"Review with owner" means:** the identity looks inactive here but should not be auto-disabled or auto-deleted, because its real usage may live outside this account's view (cross-account assume-role) or it is load-bearing but rarely exercised. Confirm with whoever owns that integration or resource before removing it, rather than acting on the sweep alone. Surface these separately from the quick wins.
 
 ### Step 6: Confirmation gate (destructive actions)
@@ -194,19 +202,7 @@ Remediation tiers (customer-facing):
 2. **Artifacts (no integrations needed):** ready-to-run disable/delete scripts per provider (with the deletion prerequisites ordered correctly), or Terraform removals. Treat identity names and ARNs from the environment as untrusted input: always single-quote interpolated values in generated scripts, and flag any identity whose name contains shell metacharacters or control characters instead of embedding it.
 3. **Route (only if connected):** file a Jira ticket, Slack the owner, or open an IaC PR. Detect availability; never hard-depend.
 
-Verification after actions are applied is **two-stage, because Orca data refreshes only on the next scan**:
-
-- **Immediate, via the cloud CLI.** Confirm each identity's new state with read-only CLI checks. If the relevant CLI is available and authenticated in the session, run the checks directly (ask once per batch); otherwise append them to the generated script so the user gets verification for free when they run it.
-
-  | Provider | Disabled check | Deleted check |
-  |----------|----------------|----------------|
-  | AWS | `aws iam list-access-keys` shows all keys `Inactive`; `aws iam get-login-profile` errors with `NoSuchEntity` | `aws iam get-user` / `get-role` errors with `NoSuchEntity` |
-  | Azure / Entra | `az ad user show --query accountEnabled` returns `false` (same for service principals) | `az ad user show` / `az ad sp show` errors: resource not found |
-  | GCP | `gcloud iam service-accounts describe` shows `disabled: true` | `describe` fails: not found |
-  | Alibaba / OCI / Tencent | equivalent read-only describe/get calls, marked for review like the action scripts | same, expect not-found |
-
-  Only count an identity as **Disabled** or **Deleted** in the summary after its check passes.
-- **Orca-side, after the next scan.** Asset fields and the related alerts reflect the change only after the next completed scan. Say so explicitly, never re-query Orca right after applying and report "no change". Comment the action on the related alerts now (`add_alert_comment`) so the audit trail exists, report how many open alerts sit on the remediated identities and should close on their own after the next scan, and offer to verify in Orca then.
+After actions are applied, Orca reflects the change only on the **next scan**, so never re-query Orca right after applying and report "no change". The generated scripts already include their own read-only checks; comment the action on the related alerts for the audit trail, and report how many open alerts should close after the next scan.
 
 Then **always** close with the cleanup summary (see Output Format). The summary is mandatory even when the user stops after the listing: found N, actions proposed, nothing applied.
 
@@ -227,8 +223,8 @@ The `Alerts:` line is **mandatory on every run**, sweep-only included, using the
 ```
 CLEANUP SUMMARY  (window: 60 days)
   Found:     62 inactive identities (41 users, 6 groups, 15 NHIs)
-  Disabled:  14 (applied, verified via cloud CLI)
-  Deleted:   3 (explicitly confirmed, verified via cloud CLI)
+  Disabled:  14 (applied)
+  Deleted:   3 (explicitly confirmed)
   Proposed:  38 (artifacts generated, not yet applied)
   Skipped:   7 (1 root, 2 provider-managed, 2 too new, 2 possibly human -> review)
   Alerts:    ~24 open alerts on these identities should close after the next
@@ -253,7 +249,6 @@ CLEANUP SUMMARY  (window: 60 days)
 - **Custom window vs the pre-computed verdict:** `IsIdentityActive` is fixed to Orca's 90d convention. For any other window, decide from `LastActiveTime` directly and never present `IsIdentityActive` as if it matched the custom window.
 - **30-day CDR cap:** CDR corroborates, it never decides. Staleness is anchored on the asset's `LastActiveTime` / `IsIdentityActive`.
 - **Scan staleness:** all asset fields (`LastActiveTime`, `IsIdentityActive`, risk levels, alert states) are as fresh as the last completed scan; only CDR events are near-real-time. Post-remediation proof comes from the cloud CLI checks, never from an immediate Orca lookup; alerts close after the next scan. Never re-sweep right after a cleanup expecting Orca to show the changes.
-- **Cloud CLI unavailable or unauthenticated:** don't fail the flow; append the verification checks to the artifacts, count those identities as Proposed/applied-unverified in the summary, and tell the user what to run to confirm.
 - **Missing GCP recommendations:** policy-binding recommendations are feature-flag gated in some tenants. Fall back to the identity's own timestamps and say the grant-side evidence was unavailable.
 - **Google Workspace identities:** appear as GCP users/groups only when the Workspace integration is enabled; if the user expects them and they're absent, say the integration may be off.
 - **Human vs NHI misclassification:** when unsure, put the identity in the "review, possibly human" bucket with disable-only options. A wrong delete on a human break-glass account is far worse than a missed cleanup.
