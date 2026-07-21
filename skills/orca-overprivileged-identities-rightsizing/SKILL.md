@@ -10,7 +10,7 @@ Answers the question: **"Which of our identities hold far more permission than t
 
 Every unused permission is standing attack surface: if the identity is phished or its key leaks, the blast radius is everything it *may* do, not what it *does* do. This skill sweeps an account or business unit for identities whose granted permissions exceed their observed usage, ranks them by identity risk score, and walks the user through right-sizing with a **non-destructive path (stage: generate the change, apply nothing)** and a **destructive path (apply)** that is always gated behind an evidence-based safety check plus explicit confirmation.
 
-**The core signal (verified in the Orca data model):** Orca's recommendation engine pre-computes a PoLP verdict per identity/grant from ~90 days of observed usage, stored as `RecommendationType` with exactly three values: **"Reduce Permissions"** (over-privileged — this skill's target), **"Inactive"** (dead weight — hand off to `/orca-inactive-identities-cleanup`), and **"PoLP Aligned"** (nothing to do). Where the verdict lives differs per provider:
+**The core signal:** Orca's recommendation engine pre-computes a PoLP verdict per identity/grant from ~90 days of observed usage, stored as `RecommendationType` with exactly three values: **"Reduce Permissions"** (over-privileged — this skill's target), **"Inactive"** (dead weight — hand off to `/orca-inactive-identities-cleanup`), and **"PoLP Aligned"** (nothing to do). Where the verdict lives differs per provider:
 
 - **AWS (identity-level):** an `AwsEffectivePermissionsPolicy` per user/role carries the verdict plus a **generated least-privilege policy** (`Recommendation.recommended_policy`), `UsedServices` vs `EntityAuthorizedServices`, and the identity's `PermissionUsage` ratio (share of authorized services actually used). Exposed directly via `get_aws_effective_permissions_policy_on_asset`. The engine skips IAM **groups**.
 - **Azure (grant-level):** each `AzureIamRoleAssignment` carries **both** the normalized `RecommendationType` verdict and an inline `Recommendation` payload: a typed action (`detach_role`, `read_only`, `just_in_time`, `scope_reduction`, `no_action_needed`), an `action_needed` boolean, and read/write action usage with `LastUsageTime`. The typed actions roll up to the three verdicts (`detach_role` → "Inactive"; `read_only` / `just_in_time` / `scope_reduction` → "Reduce Permissions"; `no_action_needed` → "PoLP Aligned"). Computed only where cloud logs are enabled for the subscription.
@@ -194,7 +194,6 @@ RIGHT-SIZING SUMMARY  (engine window: ~90 days)
 - **Empty AWS effective-permissions payload:** `get_aws_effective_permissions_policy_on_asset` can come back empty for group-derived permissions; fall back to the identity's attached policies + observed events and lower the stated confidence.
 - **AWS IAM groups:** the engine generates no group recommendation. Surface `aws_group_with_unused_services` alerts as "review with owner"; right-size the member users instead.
 - **Admin identities:** the engine emits a policy scoped to used actions even for admins — the highest-value trims. But cutting admin can still leave escalation paths (a stray `iam:PassRole` survives the trim); for admin-tier identities recommend a privilege-escalation path review of the retained permissions as the follow-up.
-- **Recency blind spot:** quarterly/annual jobs outside the ~90d engine window and 30d CDR window won't appear as used. The safety check catches the 30-day slice; for anything business-critical recommend stage-first plus a grace period watching for denials, never a same-day bulk apply.
 - **Resource/condition tightening:** if the recommended policy keeps an action but narrows its resource or condition, flag "review" rather than hard-safe — action-level replay can't fully prove resource-level equivalence.
 - **SCPs / permission boundaries:** the effective-permissions engine works at the identity-policy level; org-level guardrails aren't re-simulated here. Note it when the account is part of an AWS Organization.
 - **Hostile identity names:** quote everything interpolated into artifacts; exclude names with shell metacharacters and surface them separately.
@@ -208,7 +207,7 @@ RIGHT-SIZING SUMMARY  (engine window: ~90 days)
 |------|---------|
 | `get_business_units_data` | Expand a business unit to its member accounts |
 | `discovery_search` | Primary enumeration of identities per provider (verdict read off each asset, never off the query) |
-| `get_aws_effective_permissions_policy_on_asset` | AWS payload: recommended policy, policy diff, used vs authorized services |
+| `get_aws_effective_permissions_policy_on_asset` | AWS payload: recommended policy, used vs authorized services |
 | `get_asset_by_name` / `get_asset_by_id` | Resolve identities; read recommendation fields, `PermissionUsage`, provider-managed flags, `RiskLevel` |
 | `get_alerts_with_similar_alert_type` | AWS fallback enumeration via `aws_user_with_unused_services` / `aws_role_with_unused_services` / `aws_group_with_unused_services`; admin-family corroboration |
 | `get_cdr_events_grouped_by_event_name` / `search_cdr_events` | The Step 6 safety replay: what the identity actually invoked (30-day cap) |
@@ -218,11 +217,8 @@ RIGHT-SIZING SUMMARY  (engine window: ~90 days)
 | `get_linked_entities_mapping` / `get_linked_entities_data` | Apply blast radius: what assumes/uses the identity |
 | `add_alert_comment` / `update_alert_status` / `verify_alert` | Tier-1 Orca-native actions on the related alerts |
 
-### Parameter notes
-- `--only users|nhis` re-scopes to one bucket; `--cloud aws|azure|gcp` to one provider. `--action stage|apply` pre-selects the path; `--action apply` never skips the Step 6 gates.
-- Resolve `model_type` from a real asset lookup; don't pass guessed model names.
-- `get_alerts_with_similar_alert_type` takes the machine `alert_type` string plus an `alert_id` to exclude; pass a placeholder (e.g. `orca-0`) when enumerating.
-- Alert-driven entry: when the user starts from an over-privilege alert id, `get_alert` returns the recommendation payload (`IamRecommendedPolicy`: recommended vs current policy) and `get_asset_by_alert_id` resolves the identity — skip Step 2 and go straight to Step 3 for that identity.
+### Alert-driven entry
+When the user starts from an over-privilege alert id, `get_alert` returns the recommendation payload (`IamRecommendedPolicy`: recommended vs current policy) and `get_asset_by_alert_id` resolves the identity — skip Step 2 and go straight to Step 3 for that identity.
 
 ## Implementation Notes
 
@@ -231,5 +227,4 @@ RIGHT-SIZING SUMMARY  (engine window: ~90 days)
 3. **Risk-first ordering is an acceptance criterion.** A critical-risk role using 3 of 41 services outranks fifty mildly padded readers.
 4. **The confirmation gate is non-negotiable.** No phrasing ("just apply all the recommendations") skips Step 6; restate, show would-deny evidence and blast radius, get the explicit yes.
 5. **The right-sizing summary is mandatory** on every run, including read-only ones; "found and staged, nothing applied" is a valid summary.
-6. **Three-cloud honesty:** AWS, Azure, GCP carry the PoLP verdict; treat any other provider as unsupported and say so instead of improvising.
-7. **Stay in scope, link onward:** single-identity permission deep-dives go to `/orca-identity-review`; inactive identities go to `/orca-inactive-identities-cleanup`. The CDR safety replay (Step 6) and JIT-conversion proposals (Step 3) are handled inline. This skill sweeps breadth: find the over-privileged, stage the trim, gate the apply, report what changed.
+6. **Stay in scope, link onward:** single-identity permission deep-dives go to `/orca-identity-review`; inactive identities go to `/orca-inactive-identities-cleanup`. The CDR safety replay (Step 6) and JIT-conversion proposals (Step 3) are handled inline. This skill sweeps breadth: find the over-privileged, stage the trim, gate the apply, report what changed.
