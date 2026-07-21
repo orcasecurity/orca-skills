@@ -12,11 +12,6 @@ Every identity that exists but is never used is pure attack surface: it can be p
 
 **The core signal:** every identity Orca covers carries a pre-computed activity verdict on the asset itself: `LastActiveTime` (when it last did anything) and `IsIdentityActive` (Orca's uniform **90-day** activity convention, computed at scan time). This holds across **all six supported providers: AWS, Azure (incl. Entra ID), GCP (incl. Google Workspace), Alibaba Cloud, OCI, and Tencent Cloud**. Read the verdict off the asset first; CDR log replay is corroboration, never the primary source.
 
-On top of that, three providers carry extra unused-access evidence for the grant side:
-- **AWS:** `AccessKeyNLastUsedDate` per key, `PermissionUsage` scalar, Access Analyzer unused-access findings.
-- **Azure:** an unused-access `Recommendation` inline on the `AzureIamRoleAssignment` asset.
-- **GCP:** `Recommendation` + `LastUsageTime` on the `GcpIamPolicyBindingRecommendation` model (feature-flag gated in some tenants; fall back to the identity's own timestamps when absent).
-
 ## Usage
 
 ```
