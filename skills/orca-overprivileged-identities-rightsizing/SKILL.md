@@ -199,7 +199,7 @@ RIGHT-SIZING SUMMARY  (engine window: ~90 days)
 - **Hostile identity names:** quote everything interpolated into artifacts; exclude names with shell metacharacters and surface them separately.
 - **Scan staleness:** recommendation fields, `PermissionUsage`, and risk levels are as fresh as the last completed scan; only CDR is near-real-time. Post-apply proof comes from the cloud CLI; alerts close after the next scan.
 - **Missing recommendation layers:** Azure subscriptions without cloud logs, GCP tenants without the feature flag, AliCloud/OCI/Tencent always — report "no PoLP signal available" for that slice; never infer a trim from privilege alone.
-- **No changes without confirmation:** this skill produces the changes; the user applies them. Stage needs a go-ahead, apply needs the safety check + explicit confirmation. Nothing is ever auto-applied.
+- **No changes without confirmation:** nothing runs without the Step 6 gates — stage needs a go-ahead, apply needs the safety check plus explicit confirmation. Nothing is ever auto-applied.
 
 ## MCP Tools Used
 
