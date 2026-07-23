@@ -116,8 +116,8 @@ If this isn't clear from what the customer gave you, ask before guessing (Step 3
 
 **11. Proxy misconfiguration**
 - *Signature*: works with no proxy, breaks once `proxyURL` is set; or the environment requires a proxy but none is configured.
-- *Root cause*: `proxyURL` follows FRP's URL format — scheme, optional embedded credentials, host, and port (`http`, `socks5`, and `ntlm` schemes are all supported) — a wrong scheme, bad credentials, or a proxy allowlist that doesn't include the tunnel endpoint will break the connection.
-- *Remediation*: validate the `proxyURL` scheme and credentials; confirm the proxy itself permits egress to the tunnel endpoint; re-check pod logs for the specific `frpc` connection error after setting it (see **Helm Chart Proxy Support** doc).
+- *Root cause*: `proxyURL` follows FRP's URL format — scheme, optional embedded credentials, host, and port — with `http`, `socks5`, and `ntlm` schemes all supported. A wrong scheme, bad credentials, or a proxy allowlist that doesn't include the tunnel endpoint will break the connection.
+- *Remediation*: validate the `proxyURL` scheme and credentials against the chart's own documented format (`helm/values.yaml`'s `proxyURL` comment, and the README's "Proxy Configuration" section, in the `k8s-tunnel-client` repo); confirm the proxy itself permits egress to the tunnel endpoint; re-check pod logs for the specific `frpc` connection error after setting it.
 
 **12. DNS resolution failures**
 - *Signature*: logs show `no such host` or similar DNS failures resolving `tunnelAddr`.
@@ -125,9 +125,9 @@ If this isn't clear from what the customer gave you, ask before guessing (Step 3
 - *Remediation*: from a debug pod in the cluster, resolve `tunnelAddr` directly (e.g. `nslookup`/`getent hosts`); if it fails, check the cluster's DNS config / custom upstream resolvers can reach public DNS or have an internal record for the Orca FQDN.
 
 **13. OpenShift-specific SCC issues**
-- *Signature*: pod fails to schedule or start, only on OpenShift, with SCC-related admission errors.
-- *Root cause*: setting `openshift: true` only adds an `openshift.io/scc: nonroot-v2` (or custom `openshiftSCC`) *annotation* on the Deployment — it does not by itself grant that SCC. The connector's ServiceAccount still needs the SCC granted, typically via `oc adm policy add-scc-to-user <scc> -z <serviceAccount.name> -n <namespace>`.
-- *Remediation*: confirm the SCC is actually bound to the ServiceAccount (not just annotated) and that the target SCC is compatible with the chart's pod/container security context (runs as non-root, drops all capabilities, read-only root filesystem). See the **Deploying on OpenShift** doc.
+- *Signature*: pod fails to schedule or start, only on OpenShift, with an SCC-related admission error (e.g. "unable to validate against any security context constraint").
+- *Root cause*: on OpenShift, `openshift: true` must be set at install time. When set, the chart adds an `openshift.io/scc` annotation on the Deployment *and* a `ClusterRole` rule granting `use` on the named `SecurityContextConstraints` (`security.openshift.io` apiGroup, default name `nonroot-v2`, or the `openshiftSCC` override) to the connector's ServiceAccount via the existing `ClusterRoleBinding` — this is the correct, automatic way OpenShift grants an SCC via RBAC, so no manual `oc adm policy` step should be needed. The two most common failure modes instead: (1) `openshift: true` was never set, so the pod falls under the cluster's default `restricted`-type SCC, which typically rejects the chart's pinned `runAsUser`/`fsGroup` (1001); or (2) `openshiftSCC` points at a name that doesn't exist in the target cluster — the RBAC rule applies without error, but pod admission then fails because no matching SCC can be found.
+- *Remediation*: confirm `openshift: true` was actually set on install (`helm get values <release>`); confirm the named SCC (`openshiftSCC`, default `nonroot-v2`) exists in the cluster (`oc get scc <name>`) and is compatible with the chart's pod/container security context (non-root, all capabilities dropped, read-only root filesystem); if it doesn't exist, either create it or point `openshiftSCC` at an existing compatible SCC.
 
 **14. Cluster shows "connected" but scan results never populate**
 - *Signature*: tunnel pod healthy, no errors in its logs, Orca console shows the cluster as connected — but no inventory/scan data appears after a reasonable wait.
@@ -199,10 +199,7 @@ For all three, the fastest path is a clean escalation (Step 4) rather than repea
 ## Reference Docs
 
 - [Connecting Clusters Using Kubernetes Connector](https://docs.orcasecurity.io/docs/connecting-clusters-using-kubernetes-connector) — install steps, static IP allowlist, self-managed cluster identifier formats.
-- **Helm Chart Proxy Support** — proxy configuration section of the Kubernetes Connector docs.
-- **Deploying on Kubernetes Connector on OpenShift** — SCC configuration section of the Kubernetes Connector docs.
-
-> The last two are named in the source requirements as specific doc sections; confirm/update these links against the current docs site before publishing this skill, since the exact anchor URLs weren't independently verified.
+- Proxy and OpenShift configuration have no dedicated public doc page — the chart itself is the source of truth. In the `k8s-tunnel-client` repo: `helm/values.yaml`'s `proxyURL`, `openshift`, and `openshiftSCC` comments, and the README's "Proxy Configuration" section and configuration options table.
 
 ## Implementation Notes
 
