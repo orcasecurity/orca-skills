@@ -1138,7 +1138,7 @@ Sweeps an account or business unit for over-privileged identities using Orca's p
 - Explicit confirmation before any apply, with blast-radius preview for roles
 - Automatic exclusions: provider-managed identities, break-glass accounts, vendor/cross-account roles
 - Clean handoffs: inactive identities route to `orca-inactive-identities-cleanup`, JIT candidates to JIT conversion
-- Mandatory right-sizing summary: found, staged, applied, held, skipped, and an estimate of alerts that will close
+- Mandatory right-sizing summary: found, staged, applied, held, skipped, and the standing permissions the plan removes
 
 **Usage:**
 ```bash
@@ -1189,7 +1189,7 @@ QUICK WINS: 5 identities only ever read; swap to read-only today.
 RIGHT-SIZING SUMMARY  (engine window: ~90 days)
   Found: 31 | Proposed: 24 | Staged: 0 | Applied: 0 | Held: 0 | Skipped: 3 | JIT: 4
   Handed off: 12 inactive -> /orca-inactive-identities-cleanup
-  Alerts:  ~18 open alerts close after the next scan (estimated)
+  Removes: ~840 unused service grants once the staged plan is applied
 ═══════════════════════════════════════════════════════════════════
 ```
 

@@ -41,22 +41,39 @@ Or natural language:
 ### Step 1: Resolve scope
 
 1. **Resolve scope first (ask if not given).** Accept any one of three:
-   - **Account id**, used directly.
+   - **Account** — an AWS account id, a GCP project or organization, or an Azure subscription or tenant (name, id, or GUID). Resolve whatever was given to its `CloudAccount` asset first: AWS ids and GCP project ids resolve via `get_asset_by_name` with `model_type=CloudAccount` (the id is, or is embedded in, the display name); Azure GUIDs do **not** appear in display names — resolve them with the discovery query "cloud accounts with vendor id <guid>". Then read `CloudAccountType`: `Regular` is a single account/subscription/project — sweep it directly; `Tenant` (an Azure tenant, or "GCP Organization - <number>") expands to its member accounts like a small BU — and on GCP also adds the org's own `organizations/<org>/policy/…` bindings to the sweep. Never guess what an id refers to.
    - **Business unit**: `get_business_units_data` returns the BU's saved filter (accounts, providers, tags), not a ready-made account list — derive the member accounts from that filter before sweeping.
    - **Tag** (`--tag key=value`, repeatable, or "identities tagged env=prod" in words): sweep every identity carrying the tag(s), across accounts. Express the tag in the Step 2 `discovery_search` query; if the query can't honor it, post-filter retrieved results on the identity's tag fields.
 
    **If the user gave none of the three, ask which account, business unit, or tag to sweep** (offer to list the visible BUs) and wait. Never sweep a whole org by default. A tag may be combined with an account/BU to narrow further.
+
+   **Confirm scope size before sweeping.** If the resolved scope expands to more than 3 accounts/subscriptions or spans more than 2 providers — a BU, or an Azure tenant with many subscriptions — show the breakdown (accounts, providers, rough counts) and confirm how to prioritize before sweeping. A named scope is often bigger than the user expects.
 2. **No time-frame question.** Unlike the inactive-identities sweep, the usage window is baked into Orca's recommendation engine (~90 days of observed activity at scan time); there is nothing to ask. State the window in the output instead. If the user asks for a different window, explain that the pre-computed verdict is fixed and offer CDR corroboration (30-day cap on this MCP) as the only adjustable lens.
 
 ### Step 2: Enumerate over-privileged identities
 
-**Primary path: `discovery_search` (if enabled).** Name the **verdict and the relation** in the query — e.g. "AWS identities with effective permissions recommendation type Reduce Permissions", "Azure role assignments with recommendation type Reduce Permissions". Naming the relation does two things at once: Discovery filters server-side, and the full recommendation payload lands in the projection (a broad "AWS IAM roles" query omits it entirely). One call then yields the candidate set, each row's verdict, and on AWS the embedded `recommended_policy` — including for users whose permissions are group-derived, where the per-asset payload pull comes back empty. **The query is retrieval, not classification — verify every row:** confirm `RecommendationType == "Reduce Permissions"` on each returned row's embedded field (free, it's in the projection) and never count an identity as over-privileged merely because it matched; treat an unexpectedly empty result as a failed query (silent-empty is a known mode), not an empty population.
+The verdict lives on the identity in AWS and on each grant in Azure and GCP — so AWS enumerates identities directly, while Azure and GCP enumerate grants and resolve their principals afterwards. Use the quoted query phrasings **verbatim**: Discovery binds to whatever model the vocabulary names, so a paraphrase silently changes what is searched.
 
-| Provider | Where the verdict lives | Target population |
-|----------|-------------------------|-------------------|
-| AWS | `EffectivePermissionsPolicy.RecommendationType == "Reduce Permissions"` on `AwsUser` / `AwsIamRole`. The targeted query embeds the whole payload per row (`EffectivePermissionsPolicy.data`: verdict, `Recommendation.recommended_policy`, used vs authorized services, privilege flags); `get_aws_effective_permissions_policy_on_asset` is the single-identity resolver, not an enumeration loop | Users and roles with recent activity but unused permissions. IAM groups are not covered by the engine (surface the group alert instead, see fallback) |
-| Azure | `RecommendationType == "Reduce Permissions"` on the identity's `AzureIamRoleAssignment`s (the payload's `action_needed == true` corroborates; both fields live on the same asset, see the core-signal note above) | Users, service principals, managed identities — aggregated per principal across their assignments |
-| GCP | `Recommendation` on `GcpIamPolicyBindingRecommendation` (linked to `GcpUser` / `GcpIamServiceAccount` via the binding). **NL discovery may not surface this model at all** (it returns service accounts instead, or refuses the query as a "documentation request") — enumerate via the typed lookup: `get_asset_by_name` with `model_type=GcpIamPolicyBindingRecommendation`, subject to the truncation caveat below; see the GCP enumeration notes for the five binding-name namespaces | Users and service accounts — aggregated per identity across their bindings |
+**Run the sweep lean, whatever the provider:**
+- **Delegate the enumerate-and-resolve stage to a subagent when the environment provides one.** Raw sweep payloads run 10-50x larger than what the flow consumes; have the subagent return only a compact TSV (identity/grant, verdict, typed action, usage, last-usage) plus per-partition counts and a truncated flag.
+- **Batch independent calls in parallel** — partition probes, principal resolutions, payload pulls.
+- **Prune and dedup before resolving principals.** Resolution calls come after Step 3's row-visible exclusions — the Azure `Recommendation.description` names the *role*, so vendor fingerprints (e.g. the Orca scanner role) are visible pre-resolution; GCP binding names embed the member — and after deduping members (several grants usually share one principal). Resolve only surviving, unique principals, top-N.
+- **Persist the compact inventory to the scratchpad**; drill-downs (detail / stage / apply / safecheck) read from it instead of re-enumerating.
+
+**AWS — one targeted `discovery_search` query.** "AWS identities with effective permissions recommendation type Reduce Permissions". The verdict is 1:1 with the identity, and naming the relation both filters server-side and embeds the full payload in every row (`EffectivePermissionsPolicy.data`: verdict, `Recommendation.recommended_policy`, used vs authorized services, privilege flags) — including for group-derived users, where the per-asset payload tool returns empty. A broad "AWS IAM roles" query omits the relation entirely; `get_aws_effective_permissions_policy_on_asset` is a single-identity resolver, never an enumeration loop. IAM groups aren't covered by the engine — route them to the group alert (see fallback).
+
+**Azure — one targeted query over grants.** "Azure role assignments with recommendation type Reduce Permissions". Each row is a fix-unit — assignment id, scope, typed action, usage evidence, verdict — but carries **no principal**; resolve assignees via linked entities — after pruning and top-N only, per the lean-sweep rules (`get_linked_entities_data`: relation `Principal` is the assignee, `RoleDefinition` the current role the swap replaces). The recommendation exists **only** on `AzureIamRoleAssignment` — never phrase Azure queries with "effective permissions": that is the AWS model's term, and Azure's unrelated `AzureEffective*Permissions` models carry no recommendation fields, so such a query returns plausible-looking identity rows that cannot be verified.
+
+**GCP — one typed lookup over grants, partitioned lazily.** NL discovery does not surface `GcpIamPolicyBindingRecommendation` (it returns service accounts instead, or refuses the query as a "documentation request"). Enumerate with `get_asset_by_name`, `model_type=GcpIamPolicyBindingRecommendation` (truncation caveat below): probe the scope's broad prefixes first — `projects/<p>/` for a project, plus `<project>:` for its BigQuery datasets, plus `organizations/<org>/` on org/tenant-wide sweeps. Fewer than 50 rows means that prefix is done in one call; **only a partition returning exactly 50 is truncated — split just that one** (by the namespace shapes below, then alphabetically), dedupe unions on `UiUniqueField`, and never re-fetch rows already held. Binding names span six namespaces:
+1. `projects/<p>/policy/roles/<role>/bindings/<member>/recommendation` — predefined roles, project scope
+2. `organizations/<org>/policy/…` — org-level grants (org/tenant-wide sweeps only)
+3. `projects/<p>/policy/organizations/<org>/roles/<role>/…` and 4. `projects/<p>/policy/projects/<p>/roles/<role>/…` — custom roles (break naive `policy/roles/` substring matching)
+5. `projects/<p>/locations/…` — resource-level bindings (KMS keys, Artifact Registry, Cloud Functions)
+6. `<project>:<dataset>/policy/…` — BigQuery datasets (no `projects/` prefix at all)
+
+Each row embeds both the grant and the member. Resolve unique members to their identities (after pruning, top-N, per the lean-sweep rules) with an explicit `model_type=GcpUser` / `model_type=GcpIamServiceAccount` — a bare lookup loses to cross-provider name collisions (an OCI user with the same prefix wins and the GCP identity never surfaces).
+
+**Whatever the surface: the query is retrieval, not classification.** Every enumeration row carries the verdict — confirm it on the row, and never count an identity merely because it matched. Treat an unexpectedly empty result as a failed query (silent-empty is a known mode), not an empty population.
 
 > **Don't assume one query returns every identity.** `discovery_search` returns a bounded, risk-ordered result set (read `total_items` for the true count and the result's `app_url` for the full list). On large accounts retrieve the highest-risk slice, act on that top slice, and report `total_items` as the real total — best-effort ordering of the highest-risk slice, not a global sort of all N.
 
@@ -64,24 +81,19 @@ Or natural language:
 > ```
 > jq -r '.data[] | [.name, .data.RiskLevel.value, .data.EffectivePermissionsPolicy.data.RecommendationType.value] | @tsv' file
 > ```
-> Ignore the noise fields — `RelatedCompliances` alone embeds ~150 framework names per row and matters nowhere in this flow.
+> Ignore the noise fields — `RelatedCompliances` (~150 framework names per row), `bu_tags`, and on enriched rows (any provider) the embedded `CloudAccount`/`TenantAccount` hierarchy blob, `CodeOrigins`, and `OrcaTags` — none matter in this flow. GCP binding rows extract as:
+> ```
+> jq -r '.data[] | [.data.RecommendationType.value, .data.Recommendation.value.type, .name, (.data.LastUsageTime.value // "-"), (.data.Recommendation.value.additional_data | "\(.read_actions)r/\(.write_actions)w")] | @tsv' file
+> ```
 
 **Fallbacks**, in order (`discovery_search` may return `Feature is not enabled` or fail transiently with 5xx):
 
-1. **Alert-anchored enumeration (AWS only).** Verified machine alert types keyed on the recommendation engine (pass these exact strings to `get_alerts_with_similar_alert_type`, with a placeholder `alert_id` like `orca-0`): `aws_user_with_unused_services`, `aws_role_with_unused_services` — every such alert marks an over-privileged identity and embeds the asset with its evidence (permission usage, used vs authorized services, remediation steps). **The alert rule excludes managed roles by *path* only**, so provider-managed roles matched by name prefix (`stacksets-exec-*`, Control Tower) still carry open alerts — re-apply the Step 3 `IsAwsManagedRole` exclusion to every alert-anchored candidate; an alert's existence is not eligibility. `aws_group_with_unused_services` covers IAM groups (granted >5 services never authenticated) — surface these as "review with owner", the engine generates no group policy. **Expect this surface to be heavy and unscoped:** it returns alerts **org-wide with no account filter** (post-filter by the alert's embedded account id), each alert is a multi-KB body (rule query, score vector, remediation steps, full policy JSON), and the page is truncated (`total_items` far exceeds the rows returned) — which is why alert-derived counts are estimates from `total_items`, never row counts. **Azure and GCP have no recommendation-driven alert rules**; their fallback is path 2 only. The admin-privilege alert family (`aws_iam_user_with_admin_privileges`, `aws_iam_role_with_admin_privileges`, `gcp_service_account_with_admin_privileges`, `azure_principal_with_global_administrator_permission`, and provider variants) corroborates and finds the highest-value targets, but an admin alert alone doesn't prove the permissions are *unused* — always re-check the recommendation fields.
+1. **Alert-anchored enumeration (AWS only).** Verified machine alert types keyed on the recommendation engine (pass these exact strings to `get_alerts_with_similar_alert_type`, with a placeholder `alert_id` like `orca-0`): `aws_user_with_unused_services`, `aws_role_with_unused_services` — every such alert marks an over-privileged identity and embeds the asset with its evidence (permission usage, used vs authorized services, remediation steps). **The alert rule excludes managed roles by *path* only**, so provider-managed roles matched by name prefix (`stacksets-exec-*`, Control Tower) still carry open alerts — re-apply the Step 3 `IsAwsManagedRole` exclusion to every alert-anchored candidate; an alert's existence is not eligibility. `aws_group_with_unused_services` covers IAM groups (granted >5 services never authenticated) — surface these as "review with owner", the engine generates no group policy. **This surface is a spot-check, not an inventory:** results are org-wide with no account filter (post-filter rows by the embedded account id), each row is a multi-KB body, and the page is truncated (`total_items` far exceeds the rows returned). **Azure and GCP have no recommendation-driven alert rules**; their fallback is path 2 only. The admin-privilege alert family (`aws_iam_user_with_admin_privileges`, `aws_iam_role_with_admin_privileges`, `gcp_service_account_with_admin_privileges`, `azure_principal_with_global_administrator_permission`, and provider variants) corroborates and finds the highest-value targets, but an admin alert alone doesn't prove the permissions are *unused* — always re-check the recommendation fields.
 2. **Broad query + per-asset reads.** A broad `discovery_search` by identity type still gives the risk-ordered candidate list and `total_items`, but its flat projection **omits the verdict**, so classification then costs a per-asset read (`get_asset_by_name` / `get_asset_by_id`, or the AWS payload tool) per candidate — cap it to the top slice. Works whenever the serving layer is up.
 
 > **Model-type caveat:** `get_asset_by_name` / `get_asset_by_id` reject unknown `model_type` values. Run a default `Inventory` lookup first and read the asset's real `type` field rather than guessing; MCP-reported names can differ from internal model names.
 
-> **Typed-lookup truncation (any provider):** `get_asset_by_name` caps `name_match_limit` at 50, has **no pagination**, and returns `count` / `total_items` as null — and two identical capped calls can return *different* 50-subsets, so results are not reproducible call-to-call. Whenever this lookup is used to *enumerate* (rather than resolve one known asset), treat any exactly-50 result as truncated: partition the search by name prefix/namespace, probe each partition separately, union the results locally, and treat any partition still returning exactly 50 as still truncated. This matters most on GCP, whose primary enumeration path is this lookup; AWS and Azure enumerate via `discovery_search`, which reports `total_items` honestly.
-
-**GCP enumeration notes:**
-- **Binding names span five namespaces** — matching only on `projects/<p>/policy/roles/` misses two of them. Partition truncated enumerations along these shapes:
-  1. `projects/<p>/policy/roles/<role>/bindings/<member>/recommendation` — predefined roles, project scope
-  2. `projects/<p>/policy/organizations/<org>/roles/<role>/…` and 3. `projects/<p>/policy/projects/<p>/roles/<role>/…` — custom roles (a different shape that breaks naive `policy/roles/` substring matching)
-  4. `projects/<p>/locations/…` — resource-level bindings (KMS keys, Artifact Registry, Cloud Functions)
-  5. `<project>:<dataset>/policy/…` — BigQuery datasets (**no `projects/` prefix at all**, so project-prefix matching misses every dataset-level binding)
-- **Resolve the principal with an explicit `model_type`.** The member email is embedded in the binding name; resolve it via `get_asset_by_name` with `model_type=GcpUser` or `model_type=GcpIamServiceAccount`. A bare lookup loses to cross-provider name collisions — an OCI user with the same name prefix wins and the GCP identity never surfaces.
+> **Typed-lookup truncation (any provider):** `get_asset_by_name` caps `name_match_limit` at 50, has **no pagination**, and returns `count` / `total_items` as null — two identical capped calls can even return *different* 50-subsets. When enumerating with it, exactly-50 means truncated (the GCP bullet's lazy-partition protocol is the remedy); AWS and Azure enumerate via `discovery_search`, which reports `total_items` honestly.
 
 ### Step 3: Classify the fix per identity
 
@@ -111,17 +123,10 @@ Exclusions applied automatically (never staged or applied):
 
 ### Step 4: Rank by identity risk score
 
-Per acceptance: **highest risk first**. Rank on the **inline** `RiskLevel` / `OrcaScore` that `discovery_search` returns with each result — zero extra calls. **Never loop `get_asset_by_id` over the full candidate set**; reserve per-asset lookups for the **top-N you display** (default 25).
+Per acceptance: **highest risk first**. Rank on the **inline** `RiskLevel` / `OrcaScore` that `discovery_search` returns with each result — zero extra calls (on Azure and GCP, the principal's risk comes from the top-N resolution in Step 2). **Never loop `get_asset_by_id` over the full candidate set**; reserve per-asset lookups for the **top-N you display** (default 25).
 - Primary sort key: the inline Orca risk score / `RiskLevel`.
 - **Second column: how over-privileged.** Show AWS `PermissionUsage` (e.g. "uses 3 of 41 services") and the Azure/GCP equivalent from `additional_data` (`read_actions`/`write_actions` vs the role's grant). A dormant-90%-of-its-permissions admin outranks a mildly padded reader.
-- **Bumps (top-N only):** admin-while-underusing (the admin alert family), crown-jewel reach (`get_asset_crown_jewel_info`), exposed credentials (`get_other_secret_occurrences`), open alert pressure (`get_asset_alerts_count_grouped_by_risk_level`). Three bumps come **free, inline** on payloads you already hold: `AllowsPrivilegeEscalation`, `PermissiveActions`, and `IsPrivileged` on the AWS effective-permissions payload, and `AllowsPrivilegeEscalation` on Azure role assignments — use them before spending any per-asset calls. GCP binding recommendations additionally carry `LastUsageTime`: free days-idle evidence for the same ranking.
-
-### Step 4b: Estimate alerts that will close (mandatory, scale-safe)
-
-Every run reports how many open alerts the plan would close, derived cheaply enough to survive a 10k-identity account — **never sum per-asset alert counts across the full set**:
-- **Baseline:** aggregate `total_items` for the over-privilege alert types scoped to the account (`aws_user_with_unused_services`, `aws_role_with_unused_services`, `aws_group_with_unused_services`, plus the admin-privilege family where the trim removes admin), intersected with the candidate scope. That sum is the floor and the headline number.
-- **Precise add-on (top-N only):** exact counts from the Step 4 per-asset calls for the displayed set; estimate the tail.
-- **Always label it an estimate** and never present it as precise when it isn't.
+- **Bumps (top-N only):** crown-jewel reach (`get_asset_crown_jewel_info`), exposed credentials (`get_other_secret_occurrences`), open alert pressure (`get_asset_alerts_count_grouped_by_risk_level`). **Admin-while-underusing needs no alert lookup** — it comes free, inline, on payloads you already hold: `AllowsPrivilegeEscalation`, `PermissiveActions`, and `IsPrivileged` on the AWS effective-permissions payload, and `AllowsPrivilegeEscalation` on Azure role assignments. GCP binding recommendations additionally carry `LastUsageTime`: free days-idle evidence for the same ranking.
 
 ### Step 5: Stage the change (non-destructive path — the default)
 
@@ -170,7 +175,7 @@ Write for a **cloud owner / CISO**, punchline first, plain English, no raw field
 
 ### Right-sizing summary (mandatory, after any action or at session end)
 
-The `Alerts:` line is **mandatory on every run**, sweep-only included, using the Step 4b estimate. **The buckets must reconcile:** Proposed + Staged + Applied + Held + Skipped + JIT always sums to Found. **Proposed** is the state every eligible candidate starts in — recommendation surfaced, no stage go-ahead yet — so a sweep-only run reconciles without pretending anything was staged. JIT candidates carry the "Reduce Permissions" verdict, so they are part of Found; inactive hand-offs sit **outside** Found — they are not over-privileged, just dead weight for the other skill.
+**The buckets must reconcile:** Proposed + Staged + Applied + Held + Skipped + JIT always sums to Found. **Proposed** is the state every eligible candidate starts in — recommendation surfaced, no stage go-ahead yet — so a sweep-only run reconciles without pretending anything was staged. JIT candidates carry the "Reduce Permissions" verdict, so they are part of Found; inactive hand-offs sit **outside** Found — they are not over-privileged, just dead weight for the other skill.
 
 ```
 RIGHT-SIZING SUMMARY  (engine window: ~90 days)
@@ -182,11 +187,12 @@ RIGHT-SIZING SUMMARY  (engine window: ~90 days)
   Skipped:    3 (1 provider-managed, 1 vendor role -> review, 1 break-glass)
   JIT:        4 (rarely used -> proposed for just-in-time conversion, no trim)
   Handed off: 12 inactive -> /orca-inactive-identities-cleanup (outside Found)
-  Alerts:     ~18 open alerts on these identities should close after the next
-              scan (exact for the shown set, rest estimated from alert-type totals)
+  Removes:    ~840 unused service grants once the staged plan is applied
 ```
 
 ### Drill-downs (on request)
+
+The sweep's compact inventory lives in the scratchpad (lean-sweep rules) — drill-downs read from it, never re-enumerate.
 - **detail `<identity>`**: full evidence (used vs granted services, the recommendation, last-usage, linked entities).
 - **stage `<ids|all>`** / **apply `<ids>`**: generate artifacts for that subset (apply always passes both Step 6 gates).
 - **safecheck `<identity>`**: run the Step 6 replay on its own, before deciding.
@@ -195,8 +201,8 @@ RIGHT-SIZING SUMMARY  (engine window: ~90 days)
 ## Edge Cases
 
 - **Scope not found:** if the account id / BU resolves to nothing, say so, list visible business units via `get_business_units_data`, and ask. Never sweep a guessed scope.
-- **`discovery_search` disabled or failing:** fall back per Step 2 (AWS alert types, then per-asset reads) and say the inventory is "identities Orca currently surfaces", not guaranteed-complete; for Azure/GCP the alert path doesn't exist, so degraded runs are AWS-strongest — say that too. Two additional failure modes: an account-scoped NL query can **silently return empty** while the unscoped query works (drop the account from the query and post-filter rows by their embedded account id instead), and a model-flavored query can be **refused as a "documentation request"** — rephrase operationally or use the typed lookup.
-- **Large accounts:** retrieve the highest-risk slice, display top-N + `total_items` bucket totals, cap per-asset calls to the shown set, derive the alert estimate from aggregates. Total MCP calls stay bounded regardless of account size.
+- **`discovery_search` disabled or failing:** fall back per Step 2 (AWS alert types, then per-asset reads) and say the inventory is "identities Orca currently surfaces", not guaranteed-complete; for Azure/GCP the alert path doesn't exist, so degraded runs are AWS-strongest — say that too. Two additional failure modes: an account-scoped NL query can **silently return empty** while the unscoped query works (drop the account from the query and post-filter rows by their embedded account id; for Azure, also retry with **tenant** phrasing — "in tenant X" returns data where "in account X" comes back empty), and a model-flavored query can be **refused as a "documentation request"** — rephrase operationally or use the typed lookup.
+- **Large accounts:** retrieve the highest-risk slice, display top-N + `total_items` bucket totals, cap per-asset calls to the shown set. Total MCP calls stay bounded regardless of account size.
 - **Group-derived AWS users (empty per-asset payload):** `get_aws_effective_permissions_policy_on_asset` comes back empty for users whose permissions are group-derived — and it's predictable: the user's alert already shows `Policies: []` plus group membership in its embedded findings. Don't spend the call; both the targeted query's embedded relation and the alert's embedded findings carry the verdict and used-vs-authorized evidence for these users. Only if neither source is at hand, fall back to attached policies + observed events and lower the stated confidence.
 - **AWS IAM groups:** the engine generates no group recommendation. Surface `aws_group_with_unused_services` alerts as "review with owner"; right-size the member users instead.
 - **Admin identities:** the engine emits a policy scoped to used actions even for admins — the highest-value trims. But cutting admin can still leave escalation paths (a stray `iam:PassRole` survives the trim); for admin-tier identities recommend a privilege-escalation path review of the retained permissions as the follow-up.
@@ -209,6 +215,8 @@ RIGHT-SIZING SUMMARY  (engine window: ~90 days)
 
 ## MCP Tools Used
 
+Load every tool below in a **single ToolSearch at the start of the run** — never stop mid-flow to fetch a schema.
+
 | Tool | Purpose |
 |------|---------|
 | `get_business_units_data` | Expand a business unit to its member accounts |
@@ -218,7 +226,7 @@ RIGHT-SIZING SUMMARY  (engine window: ~90 days)
 | `get_alerts_with_similar_alert_type` | AWS fallback enumeration via `aws_user_with_unused_services` / `aws_role_with_unused_services` / `aws_group_with_unused_services`; admin-family corroboration |
 | `get_cdr_events_grouped_by_event_name` / `search_cdr_events` | The Step 6 safety replay: what the identity actually invoked (30-day cap) |
 | `get_alert` / `get_asset_by_alert_id` | Alert-driven entry: read the recommendation payload (`IamRecommendedPolicy`) off an over-privilege alert and resolve its identity |
-| `get_asset_alerts_count_grouped_by_risk_level` / `get_asset_related_alerts_summary` | Per-asset open-alert counts, **top-N only** |
+| `get_asset_alerts_count_grouped_by_risk_level` | Per-asset open-alert pressure for the ranking bump, **top-N only** |
 | `get_asset_crown_jewel_info` / `get_other_secret_occurrences` | Ranking bumps: crown-jewel reach, exposed credentials |
 | `get_linked_entities_mapping` / `get_linked_entities_data` | Apply blast radius: what assumes/uses the identity |
 | `add_alert_comment` / `update_alert_status` / `verify_alert` | Tier-1 Orca-native actions on the related alerts |
