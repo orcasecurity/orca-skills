@@ -10,18 +10,9 @@ Answers the question: **"Which of our users can sign in without MFA, and how do 
 
 A password-only user is one phish away from being an attacker. This skill sweeps an account or business unit for **users whose console sign-in is not protected by MFA**, ranks them by identity risk score, and walks the user through remediation with a **non-destructive path (guide: per-user enrollment instructions and owner notifications)** and a **destructive path (enforce: apply a require-MFA policy)** that is always gated behind explicit confirmation — because no cloud lets an admin enroll MFA *on a user's behalf*, and enforcement locks the user out until they enroll themselves. Where usage data shows a console password nobody uses, it proposes the better fix: **remove the unused console access** instead of chasing enrollment.
 
-**The core signal:** every user Orca models carries a pre-computed `MfaActive` boolean on the asset itself — one shared field across **all six supported providers: AWS, Azure (incl. Entra ID), GCP (via Google Workspace), Alibaba Cloud, OCI, and Tencent Cloud**. It is tri-state: `true` (covered), `false` (not covered), and **`null` (no signal — never treat as "no MFA")**; in live payloads a null usually shows up as the field being entirely absent, which means exactly the same thing. What it means differs per provider:
+**The core signal:** every user Orca models carries a pre-computed `MfaActive` boolean on the asset itself — one shared field across **all six supported providers: AWS, Azure (incl. Entra ID), GCP (via Google Workspace), Alibaba Cloud, OCI, and Tencent Cloud**. It is tri-state: `true` (covered), `false` (not covered), and **`null` (no signal — never treat as "no MFA")**; in live payloads a null usually shows up as the field being entirely absent, which means exactly the same thing.
 
-**Provider capability matrix — consult this before improvising for a provider.** What each column says is a product fact: a blank capability is not a data-collection failure to work around, it is a limit to state in the output.
-
-| Provider | MFA signal | Console gate | No-MFA alert rules | Cloud logs | Privilege signal | Remove-access from here |
-|----------|-----------|--------------|--------------------|-----------|------------------|------------------------|
-| AWS | `MfaActive` from the IAM credential report, plus `HardwareMfaActive` (matters for root) | `PasswordEnabled` | 4 (incl. root and hardware-root) | CloudTrail | free on alert rows (`ScoreVector`), effective-permissions payloads corroborate | **yes — the only provider where bucket 8 fires** |
-| Azure / Entra ID | `MfaActive` **computed from 4 controls**, named per user in `MfaSources`: Conditional Access, PIM role policy, registered Authentication Methods, Security Defaults | `AccountEnabled` (no separable password facet) | 3 org-level + CIS subscription variants, tiered by privilege | Activity / sign-in logs, **premium-gated** | free (`ScoreVector` + the privilege-tiered alert types) | no separable password facet → inactive hand-off |
-| GCP / Workspace | Workspace 2-Step Verification enforcement (`isEnforcedIn2Sv`) — **absent entirely without the integration**, and `UserSuspended` / `IdentityProvider` / activity vanish with it | Workspace-managed, not per-project | 1 | Audit Logs | free on alert rows (`ScoreVector`) | no — suspension is a Workspace/cleanup action |
-| Alibaba Cloud | `MfaActive` from the RAM credential report; null when the report omits it | `ConsoleLogon`; `PasswordEnabled` exists but does **not** gate | 2 (user and root) | none | free on alert rows (`ScoreVector`) | mechanism exists, but bucket 5 absorbs bucket 8 → via the cleanup flow |
-| OCI | `MfaActive` on the user | `Capabilities.canUseConsolePassword` | 1 | none | free on alert rows (`ScoreVector`, e.g. "Entity Policy: Privileged") | mechanism exists, but bucket 5 absorbs bucket 8 → via the cleanup flow |
-| Tencent Cloud | `MfaActive` from the CAM console-login flag (`LoginFlag.Stoken`) | `IsConsoleLoginEnabled` is the gate; `PasswordEnabled` expresses the same console-login setting and is the less reliable read of it, so where the two disagree trust `IsConsoleLoginEnabled` | **none** | none | not free — derive from attached `Policies` (a statement allowing wildcard action on wildcard resource with no condition) or the CAM policy alert rules | no usable usage timestamp → unreachable |
+**What each provider exposes differs sharply, and a missing capability is a product fact rather than something to work around.** Read [references/providers.md](references/providers.md) before improvising for a provider: it holds the capability matrix (MFA signal, console gate, alert rules, cloud logs, privilege signal, whether remove-access is reachable), the enumeration models, the no-MFA alert types, and the per-provider enforcement mechanics.
 
 **MFA is a console-sign-in control.** Access keys and API tokens are not protected by it, so a user with no console access has nothing for this skill to fix — that's a key-hygiene or cleanup problem, not an MFA gap. The provider alert rules gate on exactly this, and so does this skill.
 
@@ -43,6 +34,16 @@ Or natural language:
 - "does everyone with admin rights have MFA?"
 - "close the MFA gaps in our Alibaba account"
 
+### What a run looks like
+
+> **User:** "find users without MFA in acme-production"
+>
+> **The skill:** resolves `acme-production` to one AWS account (Step 1), sweeps its users scoped to that account id and classifies each from its own fields (Step 2), routes them top-down through the buckets (Step 3), and ranks what remains by inline risk (Step 4). Say 26 users came back: 1 root without MFA, 14 with no console access at all, 4 dormant, and 7 live console users — 6 of whom have never used their console password.
+>
+> **The output:** a headline ("7 users can sign in without MFA, including the root account"), a risk-ranked table of those 7, root in its own guide-only section, and quick wins that lead with the 6 unused passwords — because removing a password nobody uses beats asking them to enroll. The 14 API-only and 4 dormant users are reported as routed elsewhere, outside Found. Nothing is applied: the run ends with the enforcement summary showing 7 Found / 7 Proposed, and asks which subset to act on.
+>
+> **If the user then says "enforce for all 7":** the gate (Step 6) restates who gets locked out of the console until they enroll, excludes root as unenforceable, splits the 6 unused-password users off to remove-access, and requires a named confirmation before generating anything.
+
 ## Processing Logic
 
 ### Step 1: Resolve scope
@@ -61,18 +62,14 @@ Or natural language:
 
 ### Step 2: Enumerate users without MFA
 
-**Users only.** MFA is a human sign-in control: groups, roles, service accounts, and other NHIs are out of scope — dormant ones belong to an inactive-identity cleanup flow (`/orca-inactive-identities-cleanup`, if installed). Enumerate per provider:
+**Users only.** MFA is a human sign-in control: groups, roles, service accounts, and other NHIs are out of scope — dormant ones belong to an inactive-identity cleanup flow (`/orca-inactive-identities-cleanup`, if installed). The per-provider user model and the expression that decides "needs MFA" are in [references/providers.md](references/providers.md#enumeration-models).
 
-| Provider | Model | Decide "needs MFA" from |
-|----------|-------|--------------------------|
-| AWS | `AwsUser` | `PasswordEnabled and not MfaActive` (root: see Step 3) |
-| Azure / Entra ID | `AzureUser` | `not MfaActive` (+ `AccountEnabled` — a blocked user can't sign in) |
-| GCP / Workspace | `GcpUser` | `MfaActive = false` (explicitly false; absent = no Workspace signal) |
-| Alibaba Cloud | `AliCloudUser` | `ConsoleLogon and not MfaActive` |
-| OCI | `OciUser` | `Capabilities.canUseConsolePassword and not MfaActive` |
-| Tencent Cloud | `TencentCloudUser` | `IsConsoleLoginEnabled and not MfaActive` |
+**Primary path: `discovery_search` (if enabled).** Four rules govern it:
 
-**Primary path: `discovery_search` (if enabled).** Asset queries are **org-wide by default** — a bare "OCI users" spans every tenancy in the org, and the contamination is invisible in the rows — so put the scope in the phrase itself: "<provider> users in cloud account <id>", where `<id>` is the **identity-owning account** from Step 1 (the AWS/Alibaba/Tencent account or OCI tenancy; the Azure **tenant** — a subscription id comes back empty; the GCP **organization**). Scoped this way it filters server-side and is provably complete when `total_items` matches the row count — then **verify every row anyway** via the `asset_unique_id` prefix (below). Treat the phrasing as a retrieval hint rather than a filter to rely on: a query naming an MFA state can return users in either state, and can return fewer than the same population queried broadly, so the row's own fields decide. An empty result carries no information by itself — `total_items` comes back null, which reads the same as a query that never matched — so on empty, drop the scope, sweep broad, and post-filter by account prefix. **Counting is free:** `total_items` is independent of `limit`, so any query whose only purpose is "how big is this population" or "does this phrasing return anything" runs at `limit=1` and reads `total_items` inline — never spend a 300KB file dump on a count. But a `limit=1` hit validates the **count, not the phrase** — results can vary with the limit on the same wording, so when the real fetch comes back empty where the count didn't, retry at a smaller limit before rephrasing, then fall back to broad + post-filter. **The query is retrieval, not classification**: decide from each row's `MfaActive` + console-access fields, never from the fact that a row came back. Scope queries to the **user models above**; `MfaActive` also exists on non-user models (e.g. Alibaba VPN servers), so a bare field query pollutes the sweep.
+- **Scope inside the phrase.** Asset queries are org-wide by default — a bare "OCI users" spans every tenancy, and the contamination is invisible in the rows. Query `"<provider> users in cloud account <id>"`, where `<id>` is the **identity-owning account** from Step 1 (the AWS/Alibaba/Tencent account or OCI tenancy; the Azure **tenant**, since a subscription id comes back empty; the GCP **organization**). Then verify every row anyway via the `asset_unique_id` prefix (below) — the sweep is provably complete only when `total_items` matches the row count and every prefix matches.
+- **The query retrieves; the fields classify.** A phrase naming an MFA state can return users in either state, and can return fewer than the same population queried broadly, so decide from each row's `MfaActive` and console-access fields — never from the fact that a row came back. Keep queries pointed at the **user models above**: `MfaActive` exists on non-user models too (e.g. Alibaba VPN servers), and a bare field query pollutes the sweep.
+- **An empty result carries no information.** `total_items` comes back null, which reads the same as a query that never matched. On empty, drop the scope, sweep broad, and post-filter by account prefix.
+- **Count at `limit=1`, fetch at full size.** `total_items` is independent of `limit`, so any query whose only purpose is "how big is this population" runs at `limit=1` and reads the count inline rather than spending a 300KB file dump. That hit validates the **count, not the phrase** — results can vary with the limit on the same wording — so when the real fetch comes back empty where the count didn't, retry at a smaller limit before rephrasing, then fall back to broad + post-filter.
 
 **Run the sweep lean** (same rules as the sibling sweeps): delegate enumerate-and-classify to a subagent where available, returning a compact TSV (user, provider, MfaActive, console-access, password-last-used, risk, last-active) plus per-provider counts; batch independent calls in parallel; persist the compact inventory to the scratchpad so drill-downs never re-enumerate.
 
@@ -88,18 +85,7 @@ Or natural language:
 
 **Fallbacks**, in order (`discovery_search` may return `Feature is not enabled` or fail transiently with 5xx):
 
-1. **Alert-anchored enumeration.** Orca ships built-in no-MFA alert rules; pass these exact machine strings to `get_alerts_with_similar_alert_type` (placeholder `alert_id` like `orca-0`):
-
-   | Provider | No-MFA alert types |
-   |----------|--------------------|
-   | AWS | `aws_all_users_without_mfa` (console users incl. root), `aws_users_with_pw_without_mfa` (console users excl. root), `aws_root_user_without_mfa`, `aws_root_user_without_hardware_mfa` |
-   | Azure | `az_org_level_privileged_users_without_mfa`, `az_org_level_non_privileged_users_without_mfa`, `azure_org_level_privilege_escalation_users_without_mfa` (+ subscription-level CIS variants `az_privileged_users_without_mfa`, `az_non_privileged_users_without_mfa`; tenant posture: `az_user_settings_security_defaults_disabled`) |
-   | GCP | `google_workspace_user_without_active_mfa` |
-   | Alibaba | `alicloud_user_without_mfa`, `alicloud_root_user_without_mfa` |
-   | OCI | `oci_user_with_disabled_mfa` |
-   | Tencent | **none** |
-
-   Each alert embeds the user asset and Orca's own `RemediationConsole` enrollment steps — reuse those in the guide artifacts. **Caveats:** dismissed/suppressed alerts hide their users; results are org-wide and the page is truncated (`total_items` far exceeds rows returned), so this is a spot-check, not complete enumeration — post-filter rows by the embedded account id and say the inventory is "users Orca currently alerts on".
+1. **Alert-anchored enumeration.** Orca ships built-in no-MFA alert rules; pass the machine strings from [references/providers.md](references/providers.md#no-mfa-alert-types) to `get_alerts_with_similar_alert_type` (placeholder `alert_id` like `orca-0`). **Caveats:** dismissed/suppressed alerts hide their users; results are org-wide and the page is truncated (`total_items` far exceeds rows returned), so this is a spot-check, not complete enumeration — post-filter rows by the embedded account id and say the inventory is "users Orca currently alerts on".
 2. **Per-asset reads:** `get_asset_by_name` with the explicit user `model_type`, reading `MfaActive` + console fields off each asset (works whenever the serving layer is up). Typed-lookup caveats apply: 50-row cap, no pagination, exactly-50 means truncated.
 
 ### Step 3: Classify each user
@@ -130,9 +116,12 @@ On all three, remove-access reaches the identity through the cleanup flow rather
 
 Per acceptance: **highest risk first**. Rank on the **inline** `RiskLevel` / `OrcaScore` from the sweep rows — zero extra calls. **Never loop `get_asset_by_id` over the full candidate set**; per-asset lookups are for the **top-N you display** (default 25).
 - Primary sort key: the inline Orca risk score / `RiskLevel`.
-- **Second column: privilege, and it is free.** A no-MFA admin is the single worst identity in an account. Every no-MFA alert row carries the verdict in `ScoreVector.AssetContextScore.Features[]` — display names like "User Type: Root", "Effective Policy: Privileged", "Entity Policy: Privileged" — so the account-scoped alert cross-check fills this column for the whole set in the call you already made, on any provider. Azure additionally splits it by alert type (`…privileged…`, `…privilege_escalation…`), and AWS effective-permissions payloads corroborate with `IsPrivileged` / `AllowsPrivilegeEscalation`. **Tencent is the exception**: with no no-MFA alert rules there are no rows to read it off, so fill the column from the user's attached `Policies` — a statement allowing a wildcard action on a wildcard resource with no condition is admin-equivalent, and the CAM policy alert rules flag the same thing. That is a lookup rather than free, so it is a top-N cost like the other bumps. Either way, don't reach for group membership: group models are thin (`OciIamGroup` carries no member list at all), so that path costs a call and returns nothing.
+- **Second column: privilege.** A no-MFA admin is the single worst identity in an account, and the signal is usually free:
+  - **From alert rows (any provider with no-MFA rules):** `ScoreVector.AssetContextScore.Features[]` carries display names like "User Type: Root", "Effective Policy: Privileged", "Entity Policy: Privileged", so the account-scoped cross-check fills the column for the whole set in a call already made. Azure additionally splits it by alert type (`…privileged…`, `…privilege_escalation…`); AWS effective-permissions payloads corroborate with `IsPrivileged` / `AllowsPrivilegeEscalation`.
+  - **Tencent, which has no no-MFA rules:** read it from the user's attached `Policies` — a statement allowing a wildcard action on a wildcard resource with no condition is admin-equivalent, and the CAM policy alert rules flag the same shape. This is a lookup, so cap it to the top-N like the other bumps.
+  - **Never from group membership:** group models are thin (`OciIamGroup` carries no member list at all), so that path costs a call and returns nothing.
 - **Bumps (top-N only):** crown-jewel reach (`get_asset_crown_jewel_info`), exposed credentials (`get_other_secret_occurrences`), open alert pressure (`get_asset_alerts_count_grouped_by_risk_level`).
-- **Urgency bump — the gap is being exercised:** a recent console sign-in without MFA proves the risk is live, not theoretical. Check the CDR detection alerts (`console_login_without_mfa_from_any`, `root_account_console_login_without_mfa`) and recent ConsoleLogin events for the top-N; a root that logged in password-only last week outranks everything. This evidence exists for three providers only: **cloud-log events are available for AWS (CloudTrail), Azure (Activity / sign-in logs), and GCP (Audit Logs); Alibaba Cloud, OCI, and Tencent Cloud have no cloud-log ingestion.** For those unsupported providers there is nothing to query, so skip the lookup and report the bump as unavailable for the provider rather than spending a call to rediscover it. Where cloud logs do exist an empty result is genuinely ambiguous, and one probe resolves it: an unfiltered `search_cdr_events` for the provider (no account filter) returning zero org-wide means cloud logs aren't reaching Orca for that provider at all — an Azure tenant without the premium licensing / diagnostic settings, or an AWS account whose trail was never connected — while an account-scoped zero cannot separate "not connected" from "not exercised". Either way an absent bump is absent evidence, never "not exercised", so state which of the two you established.
+- **Urgency bump — the gap is being exercised:** a recent console sign-in without MFA proves the risk is live, not theoretical. Check the CDR detection alerts (`console_login_without_mfa_from_any`, `root_account_console_login_without_mfa`) and recent ConsoleLogin events for the top-N; a root that logged in password-only last week outranks everything.   This evidence exists for **AWS (CloudTrail), Azure (Activity / sign-in logs), and GCP (Audit Logs) only** — Alibaba, OCI, and Tencent have no cloud-log ingestion, so skip the lookup there and report the bump as unavailable for the provider rather than spending a call to rediscover it. Where cloud logs do exist, an empty result is ambiguous and one probe resolves it: an unfiltered `search_cdr_events` for the provider (no account filter) returning zero **org-wide** means logs aren't reaching Orca for that provider at all (an Azure tenant without the premium licensing or diagnostic settings, an AWS account whose trail was never connected), while an **account-scoped** zero cannot separate "not connected" from "not exercised". An absent bump is absent evidence, never "not exercised" — state which of the two you established.
 
 ### Step 5: Propose the action plan
 
@@ -140,20 +129,13 @@ Per acceptance: **highest risk first**. Rank on the **inline** `RiskLevel` / `Or
 
 **Guide (non-destructive):** per-user enrollment instructions (reuse the alert's embedded `RemediationConsole` steps — they're maintained per provider) plus an owner-notification artifact (message text naming the user, the risk, the deadline, and the enrollment link). Nothing changes in the cloud.
 
-**Enforce (destructive — locks the user out until they enroll):**
+**Enforce (destructive — locks the user out until they enroll):** the per-provider mechanism, its rollback, and its traps are in [references/providers.md](references/providers.md#enforcement-mechanisms). Two apply everywhere: a tenant-wide policy always carries a named break-glass exclusion, and mechanism-level steps on the less battle-tested surfaces (Alibaba, OCI, Tencent) are marked for review before running.
 
-| Provider | Enforcement mechanism | Notes |
-|----------|----------------------|-------|
-| AWS | Attach the AWS-documented "self-manage MFA" deny policy (deny everything except MFA management unless `aws:MultiFactorAuthPresent`) to the user or their group; org-wide via SCP | User keeps exactly enough access to enroll, everything else is denied until they do. Rollback = detach |
-| Azure / Entra ID | Conditional Access policy requiring MFA for the selected users (needs Entra ID P1; **always exclude the break-glass accounts by name**); tenant-wide alternative: Security Defaults (free tier) | CA still allows the sign-in that registers MFA. Never stage a tenant-wide CA policy without a named break-glass exclusion — locking every admin out of a tenant is unrecoverable. Rollback = disable the policy |
-| GCP / Workspace | Enforce 2SV on the org unit or group in the Admin console, with an enrollment grace period | Enforcement ≠ enrollment: users enroll themselves during the grace period, then are locked out |
-| Alibaba Cloud | Require MFA binding on the user's login profile (`MFABindRequired`), or account-wide security preference | Mechanism-level steps, mark for review before running (less battle-tested surface) |
-| OCI | Sign-on policy requiring MFA — but policies are **per identity domain**, so group the targets by each user's `IdentityDomain` first: a tenancy with `Default` plus a custom domain needs one policy per domain, and a single policy silently covers only part of the set. Orca's own remediation for these alerts leans on notifying the user or resetting their console password (`oci iam user ui-password create-or-reset`), which is the lighter lever — prefer it, and treat the sign-on policy as the escalation | Mechanism-level, mark for review |
-| Tencent Cloud | Console-login MFA flag on the user (the read side of `LoginFlag.Stoken`) | Mechanism-level, mark for review; no alert rule exists to verify against |
+**Remove console access (destructive, for the unused-password bucket):** delete the unused sign-in facet instead of chasing enrollment — per-provider commands in [references/providers.md](references/providers.md#remove-console-access). For a password nobody uses this is the safest fix on the board; feature it in Quick wins.
 
-**Remove console access (destructive, for the unused-password bucket):** delete the unused sign-in facet instead of chasing enrollment — AWS `aws iam delete-login-profile` (access keys untouched; rollback = `create-login-profile`), Alibaba disable console logon on the login profile, OCI remove the console-password capability, Tencent disable console login. Azure has no separable password facet — its never-signs-in case is the inactive hand-off. For a password nobody uses this is the safest fix on the board; feature it in Quick wins.
+Every enforce or remove-access artifact embeds: the affected users, the consequence in plain words (lockout-until-enrollment, or console sign-in gone), the rollback commands, and the read-only verification check (Step 7).
 
-Every enforce or remove-access artifact embeds: the affected users, the consequence in plain words (lockout-until-enrollment, or console sign-in gone), the rollback commands, and the read-only verification check (Step 7). Treat user names and ARNs as untrusted input: single-quote every interpolated value; exclude names containing shell metacharacters and surface them for manual handling.
+**Interpolating an identity into a generated command needs a mechanical check, not a judgment call.** Names and ARNs arrive from the cloud environment, so treat them as untrusted: a name may legitimately contain an apostrophe, which escapes single-quoting, and deciding case by case whether a character is "dangerous" is exactly the judgment that fails under load. Emit a name into a command **only if it matches `^[A-Za-z0-9_+=,.@-]+$`** (the IAM-safe character set, and a close fit for the other providers); single-quote it anyway. Every name that fails the pattern goes to a **handle-manually** list — displayed to the user, never interpolated — and counts under Skipped in the summary.
 
 ### Step 6: Confirmation gate (enforce path)
 
@@ -181,71 +163,25 @@ Then **always** close with the enforcement summary (see Output Format) — manda
 
 ## Output Format
 
-Write for a **cloud owner / CISO**, punchline first, plain English, no raw field names in the body.
+Write for a **cloud owner / CISO**, punchline first, plain English, no raw field names in the body. Full templates are in [references/output.md](references/output.md): the standard run's seven sections, the zero-finding proof shape, the summary block, and the drill-downs. Three requirements hold on every run and are not optional:
 
-1. **Headline:** counts and the exposure. *"41 users in acme-production can sign in without MFA: 28 AWS, 9 Azure, 4 Alibaba — including 2 root accounts and 6 admins. 11 carry high or critical risk."*
-2. **Ranked table**, highest risk first: **# | User | Provider | Privilege | Last active | Risk | Proposed action**.
-3. **Root & break-glass (own section):** roots without MFA (or without hardware MFA) with their guide steps; break-glass accounts flagged for review — never in the bulk plan.
-4. **Quick wins (recommended starting point):** the safe, high-impact subset (e.g. "these 5 console passwords were never used — remove them today, nobody notices"; "these 6 admins are active weekly; notify today, enforce Friday").
-5. **Routed elsewhere:** API-only users → key hygiene, federated → IdP, inactive → `/orca-inactive-identities-cleanup`, no-signal slices (e.g. "GCP: Workspace integration off — no MFA visibility").
-6. **Bottom line:** the single riskiest unprotected user + what full coverage closes.
-7. **Coverage note (always):** data is as of the last completed scan, and cloud-log corroboration is capped at 30 days. Name every capability the swept providers lack, reading them off the matrix at the top — what MFA means on that provider, whether alert rules and cloud logs exist, whether remove-access is reachable — so the reader can tell a clean result from a blind spot.
+- **The enforcement summary is mandatory**, including on read-only runs, and its buckets must reconcile: Proposed + Guided + Enforced + Access removed + Skipped sums to Found, with routed-elsewhere buckets (API-only, federated, inactive, disabled, no-signal) counted **outside** Found.
+- **A zero-finding run publishes proof, not absence** — completeness of the sweep, the scoped-vs-broad delta, second-surface corroboration, and what the clean result doesn't cover. A false all-clear is this skill's worst failure.
+- **The coverage note always names what the swept providers can't show you**, read off the capability matrix, so a reader can tell a clean result from a blind spot.
 
-### Zero-finding runs: publish the proof, not the absence
-
-**A clean result is the case that most needs evidence, because a false all-clear is this skill's worst failure and "MFA coverage evidence for an audit" is a stated use.** "I found nothing" is not an output. When Found = 0, replace the ranked table and quick wins with the proof that the zero is real:
-
-1. **Completeness of the sweep:** `total_items` against rows actually classified, and confirmation that every row's `asset_unique_id` prefix matched the intended account — a zero over an incomplete or wrong-scoped population is worthless.
-2. **The scoped-vs-broad delta:** what the same query returns unscoped. Equal numbers mean the scope filter did nothing (suspect it); a larger org-wide count that drops to zero in scope is what a genuine clean account looks like.
-3. **Second-surface corroboration:** the account-scoped alert query returning zero open no-MFA alerts, or, where the provider has no alert rules, an explicit statement that no second surface exists here.
-4. **What the clean result does *not* cover:** the swept providers' missing capabilities from the matrix, and the buckets that were routed out (API-only, federated, no-signal) — a user population that is 100% API-only is not an MFA success story.
-
-State the conclusion at the strength the evidence supports: "every console user in this account has MFA" is a claim; "no console users without MFA were found, and here is why that population is complete" is the defensible version.
-
-### Enforcement summary (mandatory, after any action or at session end)
-
-**The buckets must reconcile:** Proposed + Guided + Enforced + Access removed + Skipped always sums to Found. **Proposed** is the start state (gap surfaced, no action go-ahead yet), so a sweep-only run reconciles without pretending anything was sent. Routed-elsewhere buckets (API-only, federated, inactive, disabled, no-signal) sit **outside** Found — they are not remediable MFA gaps here.
-
-```
-MFA ENFORCEMENT SUMMARY
-  Found:      41 users without MFA (28 AWS, 9 Azure, 4 Alibaba; 2 root, 6 admins)
-  Proposed:       19 (gap surfaced, awaiting a go-ahead)
-  Guided:         12 (enrollment instructions + owner notifications generated/sent)
-  Enforced:        3 (require-MFA policy applied, explicitly confirmed, verified via cloud CLI)
-  Access removed:  5 (unused console passwords deleted, last-used evidence confirmed)
-  Skipped:         2 (1 break-glass -> review with owner, 1 hostile username -> manual)
-  Routed:     9 outside Found (5 API-only -> key hygiene, 2 federated -> IdP,
-              2 inactive -> /orca-inactive-identities-cleanup)
-  No signal:  GCP (Workspace integration off)
-  Alerts:     ~38 open no-MFA alerts commented + snoozed to their deadlines; they
-              close after enrollment and the next scan (estimated from alert-type
-              totals; Orca data refreshes on scan)
-```
-
-### Drill-downs (on request)
-
-The sweep's compact inventory lives in the scratchpad — drill-downs read from it, never re-enumerate.
-- **detail `<user>`**: full evidence (MFA state and source, console access, password usage, privilege, last activity, open alerts).
-- **guide `<ids|all>`** / **enforce `<ids>`** / **remove-access `<ids>`**: generate artifacts for that subset (enforce and remove-access always pass the Step 6 gate).
-- **recheck**: after the next scan, re-run the sweep from the saved inventory and report the delta — who enrolled, which alerts closed, who is past deadline and still exposed.
-- **cloud `<aws|azure|gcp|alicloud|oci|tencent>`** / **only `<console|root>`**: re-scope the sweep.
 
 ## Edge Cases
 
 - **Scope not found:** if the account id / BU / tag resolves to nothing, say so, list visible business units via `get_business_units_data`, and ask. Never sweep a guessed scope.
-- **`discovery_search` unavailable or imprecise:** a query can come back empty, or return rows that don't match the phrasing, so decide from the field on every row; on an empty result retry broader phrasing before concluding the population is empty; fall back per Step 2 and say the inventory is "users Orca currently surfaces". Tencent has no alert fallback and no working degraded path at all: the per-asset reader matches on names, and names only come from discovery, so if discovery is down for a Tencent scope there is nothing to fall back to. Say that plainly rather than implying a fallback exists.
+- **`discovery_search` unavailable or imprecise:** a query can come back empty, or return rows that don't match the phrasing, so decide from the field on every row; on an empty result retry broader phrasing before concluding the population is empty; fall back per Step 2 and say the inventory is "users Orca currently surfaces". Some providers have no usable fallback at all (see the provider reference) — say so plainly rather than implying one exists.
 - **Judge alert liveness from `Status` / `IsLive` only:** an alert that is open and in progress can still carry values in `ClosedReason` and `ClosedTime`, so those fields are not a liveness signal — filtering on them can discard live findings and produce a false zero, the outcome this skill most needs to avoid. Likewise, an alert's `asset_unique_id` / `GroupUniqueId` may not line up with current inventory ids, so join alerts to users on `RiskFindings.id` (or the embedded name plus account) rather than assuming they match.
 - **Null vs false:** `MfaActive: null` — usually an entirely absent field in live payloads — is "no signal", never a gap. The no-signal bucket is never proposed for action; a whole provider can be no-signal (GCP without Workspace), and the integration-status check turns that verdict from a guess into a verified statement.
-- **Non-user models carry `MfaActive`** (e.g. Alibaba VPN servers): enumerate by the user models in Step 2's table, never by a bare field query.
 - **Large accounts:** retrieve the highest-risk slice, display top-N + `total_items` bucket totals, cap per-asset calls to the shown set. Total MCP calls stay bounded regardless of account size.
-- **Azure activity data is premium-gated:** `LastActiveTime` / `IsIdentityActive` derive from Graph `signInActivity`, which requires premium Entra ID licensing (P1/P2) — most tenants have neither field on any user, as the normal state, not a telemetry bug. The MFA verdict itself is unaffected (`MfaActive` computes from registration and policy, not sign-ins), but the inactive bucket and the urgency bump degrade by design: report "activity not observable for this tenant" instead of presenting every user as active, and sequence enforcement as if everyone is (Step 6).
-- **Azure "covered" is policy-dependent:** `MfaActive: true` via Conditional Access or Security Defaults reflects tenant policy, not a registered device; if the tenant later drops the policy, coverage evaporates. `MfaSources` says which case each user is; mention it when coverage rests on a single policy. `az_user_settings_security_defaults_disabled` corroborates tenant-level posture.
-- **Azure guests / federated users:** `#EXT#` guests register MFA in their home tenant; Workspace-federated and SSO users likewise live in the IdP. Route onward instead of reporting a local gap — and note a resource-side Conditional Access policy as the boundary control.
-- **Root accounts:** no provider exposes an API to enroll or force MFA on root — artifacts are guidance for the account owner, and root never joins a bulk enforce. AWS GovCloud roots have no MFA concept at all (Orca's own rules exclude them).
+- **Provider-specific traps** — premium-gated Azure activity data, policy-dependent Azure coverage, guests registering MFA in their home tenant, root being unenforceable everywhere, non-user models that also carry `MfaActive` — are collected in [references/providers.md](references/providers.md#provider-specific-edge-cases). Check them before concluding anything about a provider you haven't swept before.
 - **Break-glass lockout is the worst outcome:** an emergency account locked behind an unreachable MFA device during an incident is exactly what break-glass exists to avoid. Review with the owner; on Azure the exclusion is written into the CA artifact itself.
 - **Enforcement ≠ enrollment:** the policy lands instantly, the user enrolls later (or gets locked out). Recommend notify-first with a stated deadline; the AWS deny-policy pattern leaves self-enrollment open, Azure CA allows the registering sign-in, Workspace has a grace period.
 - **Scan staleness:** `MfaActive`, risk levels, and alert states are as fresh as the last completed scan; only CDR is near-real-time. Post-action proof comes from the cloud CLI; alerts close after the next scan.
-- **Hostile user names:** quote everything interpolated into artifacts; exclude names with shell metacharacters and surface them separately.
+- **Hostile or awkward user names:** apply the Step 5 allowlist — interpolate only names matching `^[A-Za-z0-9_+=,.@-]+$`, single-quoted; everything else is displayed for manual handling and never written into a command. An apostrophe in a display name is enough to break naive quoting, so this is a routine case, not a hypothetical attack.
 - **No changes without confirmation:** guide needs a go-ahead, enforce needs the Step 6 gate. Nothing is ever auto-applied.
 
 ## MCP Tools Used
