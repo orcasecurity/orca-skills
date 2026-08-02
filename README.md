@@ -1008,39 +1008,6 @@ COVERAGE GAPS (suggest custom discovery alerts):
 </details>
 
 
-## Testing
-
-All skills include automated evaluations using [Promptfoo](https://www.promptfoo.dev/).
-
-### Run Tests Locally
-
-```bash
-# Install Promptfoo
-npm install -g promptfoo
-
-# Set your API key
-export ANTHROPIC_API_KEY="your-key"
-
-# Run all tests
-promptfoo eval
-
-# View results
-promptfoo view
-```
-
-See [EVALS.md](EVALS.md) for detailed testing guide, including:
-- Test coverage per skill
-- Adding new test cases
-- CI/CD integration
-- Debugging failed tests
-
-**Test suite includes ~30 test cases covering:**
-- Skill triggering from natural language
-- Output format validation
-- Error handling
-- Cross-model compatibility
-- Proactive remediation behavior
-
 ## Contributing
 
 We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
