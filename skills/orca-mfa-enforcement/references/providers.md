@@ -27,6 +27,8 @@ What each column says is a product fact: a blank capability is not a data-collec
 
 Users only — groups, roles, and service accounts are out of scope for MFA.
 
+**The gate field is a tri-state, not a boolean.** These expressions are shorthand for retrieval; when the gate reads null or is absent, that is *unknown*, never `false`. A null gate keeps the user in the console buckets with the gate flagged unreadable — the Alibaba credential report is documented below as omitting fields, so this is a live case, and coercing it to false silently deletes real console users from the findings.
+
 | Provider | Model | Decide "needs MFA" from |
 |----------|-------|--------------------------|
 | AWS | `AwsUser` | `PasswordEnabled and not MfaActive` (root: bucket 1) |
@@ -59,19 +61,19 @@ Applying any of these locks the user out of the console until they enroll, so al
 |----------|----------------------|-------|
 | AWS | Attach the AWS-documented "self-manage MFA" deny policy (deny everything except MFA management unless `aws:MultiFactorAuthPresent`) to the user or their group; org-wide via SCP | User keeps exactly enough access to enroll, everything else is denied until they do. Rollback = detach |
 | Azure / Entra ID | Conditional Access policy requiring MFA for the selected users (needs Entra ID P1; **always exclude the break-glass accounts by name**); tenant-wide alternative: Security Defaults (free tier) | CA still allows the sign-in that registers MFA. Never stage a tenant-wide CA policy without a named break-glass exclusion — locking every admin out of a tenant is unrecoverable. Rollback = disable the policy |
-| GCP / Workspace | Enforce 2SV on the org unit or group in the Admin console, with an enrollment grace period | Enforcement ≠ enrollment: users enroll themselves during the grace period, then are locked out |
-| Alibaba Cloud | Require MFA binding on the user's login profile (`MFABindRequired`), or account-wide security preference | Mechanism-level steps, mark for review before running (less battle-tested surface) |
-| OCI | Sign-on policy requiring MFA — but policies are **per identity domain**, so group the targets by each user's `IdentityDomain` first: a tenancy with `Default` plus a custom domain needs one policy per domain, and a single policy silently covers only part of the set. Orca's own remediation for these alerts leans on notifying the user or resetting their console password (`oci iam user ui-password create-or-reset`), which is the lighter lever — prefer it, and treat the sign-on policy as the escalation | Mechanism-level, mark for review |
-| Tencent Cloud | Console-login MFA flag on the user (the read side of `LoginFlag.Stoken`) | Mechanism-level, mark for review; no alert rule exists to verify against |
+| GCP / Workspace | Enforce 2SV on the org unit or group in the Admin console, with an enrollment grace period | Enforcement ≠ enrollment: users enroll themselves during the grace period, then are locked out. **Rollback:** turn 2SV enforcement back off for that OU or group (record which one, and its prior setting) |
+| Alibaba Cloud | Require MFA binding on the user's login profile (`MFABindRequired`), or account-wide security preference | Mechanism-level steps, mark for review before running (less battle-tested surface). **Rollback:** set `MFABindRequired` back to its recorded prior value on each user, or restore the account-wide preference |
+| OCI | Sign-on policy requiring MFA in the IAM identity domain — but policies are **per identity domain**, so group the targets by each user's `IdentityDomain` first: a tenancy with `Default` plus a custom domain needs one policy per domain, and a single policy silently covers only part of the set. Note that Orca's own remediation text for these alerts leans on notifying the user or resetting their console password (`oci iam user ui-password create-or-reset`) — that is a **guide-path action, not enforcement**: it neither requires nor verifies MFA, so it must never be applied under a consent gate that disclosed a lockout | Mechanism-level, mark for review. **Rollback:** delete or disable the sign-on policy rule that was added (capture the policy's prior statement text before editing) |
+| Tencent Cloud | Console-login MFA flag on the user (the write side of `LoginFlag.Stoken`) | Mechanism-level, mark for review; no alert rule exists to verify against. **Rollback:** restore the user's prior console-login MFA flag, recorded before the change |
 
 ## Remove console access
 
-For the unused-password bucket: delete the unused sign-in facet instead of chasing enrollment.
+For bucket 8 only, and bucket 8 requires **positive evidence the password is unused**. Read the precondition before reaching for a command: on Alibaba and OCI the timestamps collapse, so those users are claimed by bucket 5 and reach removal through the cleanup flow instead; on Tencent no password-usage field exists at all, so the evidence the confirmation gate must restate cannot be stated truthfully and removal is not available from here. **In practice that leaves AWS as the provider where this path fires.** The others are listed so a cleanup flow acting on the same identity knows the mechanism, not as an invitation to generate one from this skill.
 
-- **AWS** — `aws iam delete-login-profile` (access keys untouched; rollback = `create-login-profile`)
-- **Alibaba** — disable console logon on the login profile
-- **OCI** — remove the console-password capability
-- **Tencent** — disable console login
+- **AWS** — `aws iam delete-login-profile` (access keys untouched; rollback = `create-login-profile`, which requires setting a new password)
+- **Alibaba** — disable console logon on the login profile (rollback: re-enable it, password must be reset)
+- **OCI** — remove the console-password capability (rollback: restore the capability, password must be reset)
+- **Tencent** — disable console login (rollback: re-enable it, password must be reset)
 - **Azure** — no separable password facet; its never-signs-in case is the inactive hand-off
 
 ## Provider-specific edge cases

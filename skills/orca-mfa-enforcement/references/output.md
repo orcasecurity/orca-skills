@@ -33,17 +33,18 @@ State the conclusion at the strength the evidence supports: "every console user 
 
 Mandatory after any action and at session end, including read-only runs.
 
-**The buckets must reconcile:** Proposed + Guided + Enforced + Access removed + Skipped always sums to Found. **Proposed** is the start state (gap surfaced, no action go-ahead yet), so a sweep-only run reconciles without pretending anything was sent. Routed-elsewhere buckets (API-only, federated, inactive, disabled, no-signal) sit **outside** Found — they are not remediable MFA gaps here.
+**The buckets must reconcile:** Proposed + Guided + Staged + Enforced + Access removed + Skipped always sums to Found. **Proposed** is the start state (gap surfaced, no action go-ahead yet), so a sweep-only run reconciles without pretending anything was sent. **Staged** is the confirmed-but-unverified state: the gate was passed and the artifact handed over, but no cloud CLI check could run — without it, an artifact-only run cannot balance, and calling those users Enforced would claim a verification that never happened. Routed-elsewhere buckets (API-only, federated, inactive, disabled, no-signal) sit **outside** Found — they are not remediable MFA gaps here.
 
 ```
 MFA ENFORCEMENT SUMMARY
   Found:      41 users without MFA (28 AWS, 9 Azure, 4 Alibaba; 2 root, 6 admins)
-  Proposed:       19 (gap surfaced, awaiting a go-ahead)
+  Proposed:       17 (gap surfaced, awaiting a go-ahead)
   Guided:         12 (enrollment instructions + owner notifications generated/sent)
+  Staged:          2 (confirmed, artifact delivered, no credentials to verify with)
   Enforced:        3 (require-MFA policy applied, explicitly confirmed, verified via cloud CLI)
   Access removed:  5 (unused console passwords deleted, last-used evidence confirmed)
-  Skipped:         2 (1 break-glass -> review with owner, 1 name outside the safe
-                      character set -> handle manually)
+  Skipped:         2 (1 break-glass -> review with owner, 1 whose enforce command
+                      needs manual handling -> guide still delivered)
   Routed:     9 outside Found (5 API-only -> key hygiene, 2 federated -> IdP,
               2 inactive -> inactive-identity cleanup)
   No signal:  GCP (Workspace integration off)
