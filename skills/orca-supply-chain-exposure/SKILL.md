@@ -291,4 +291,3 @@ Manual verification needed in Orca UI → Asset → SBOM.
 3. **"Below Range" is a real status, not a non-finding** — call it out explicitly so the user sees that the check ran and the asset is verified safe.
 4. **Crown jewel + internet-facing flag** turns a generic "vulnerable" hit into a priority-1 incident. Always enrich confirmed exposures with these two fields.
 5. **Link to other skills**: suggest `/orca-impact-analysis` for fix consequences, `/orca-alert-triage` for any related CVE alert, `/orca-account-health` if "not found" results need a coverage sanity-check.
-6. **Optional research escalation**: if connected to the SingleStore observations DB (`mcp__singlestore-observations__execute_sql`), use the `observations_non_inventory` table for cross-tenant package searches. This is a research-mode capability, not a customer-facing flow.
