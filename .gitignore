@@ -29,8 +29,3 @@ test-alerts.json
 # Temporary files
 tmp/
 temp/
-
-# Promptfoo eval results
-eval-results.json
-.promptfoo/
-output/
