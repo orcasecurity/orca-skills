@@ -45,6 +45,7 @@
 | [`orca-supply-chain-exposure`](skills/orca-supply-chain-exposure/) | "From this list of suspect packages, which are we actually running and where?" |
 | [`orca-cve-blast-radius`](skills/orca-cve-blast-radius/) | "This CVE just dropped — which assets are actually at risk?" |
 | [`orca-account-health`](skills/orca-account-health/) | "Is every account connected, synced, and fully scanned?" |
+| [`orca-k8s-connector-troubleshoot`](#orca-k8s-connector-troubleshoot) | "Why isn't my Kubernetes Connector installing or connecting?" |
 
 ### Recommended Workflows
 
@@ -59,6 +60,8 @@
 > **Reactive (advisory landed):** Supply chain exposure → CVE blast radius → Impact analysis → Fix
 >
 > **Pre-audit / pre-investigation:** Account health → Compliance gaps / Investigate (trust the data first)
+>
+> **Connector setup:** Connector troubleshoot → (escalate to support if a known platform limitation)
 
 ## Installation
 
@@ -1011,6 +1014,34 @@ COVERAGE GAPS (suggest custom discovery alerts):
 ```
 
 [Full Documentation →](skills/orca-custom-framework/)
+
+</details>
+
+<details>
+<summary><strong><a id="orca-k8s-connector-troubleshoot"></a>orca-k8s-connector-troubleshoot</strong></summary>
+
+**"Why isn't my Kubernetes Connector installing or connecting?"**
+
+Self-serve troubleshooting for the Kubernetes Connector (K8s Tunnel Client, Helm chart `orca-tunnel`). Takes raw customer input — an error message, `helm status`, `kubectl describe`, or pod logs — and maps it to a known install-time or runtime failure category, then walks through step-by-step remediation led by a one-line fix before the technical detail. Asks clarifying questions when the input is ambiguous, and produces a clean support handoff for anything it can't resolve, including known platform limitations that aren't fixable from the customer's side.
+
+**Features:**
+- Triages input into install-time (chart never deployed) vs. runtime (deployed, tunnel/scan not working), starting with a sanity check on whether the cluster needs the Connector at all
+- Includes a symptom → category quick-reference table so a pasted error jumps straight to the fix instead of scanning the full list
+- Covers 15 known failure categories: TLS/network connectivity, RBAC, image pulls, bad `--set` parameters, version incompatibility, duplicate cluster entries, resource constraints, custom namespaces, expired service-account tokens (K8s 1.30+), NetworkPolicy blocking API-server egress, tunnel auth drops, proxy misconfiguration (including TLS-inspecting proxies), DNS failures, OpenShift SCC issues, and "connected but no scan data"
+- Recognizes platform limitations the customer can't self-fix (e.g. BYOC accounts don't run Kubernetes scanning, stale tunnel targets, a known AKS tunnel-crash bug) and escalates instead of looping — while pointing to the self-service delete API for duplicate cluster entries instead of escalating that case
+- Produces a structured support handoff summary (cluster type, connector version, category, IDs, logs) when it can't resolve the issue
+
+**Usage:**
+```bash
+/orca-k8s-connector-troubleshoot <paste error, helm status, kubectl describe, or pod logs>
+
+# Or natural language
+the k8s connector pod is stuck in ImagePullBackOff
+tunnel keeps disconnecting, logs show TLS handshake timeout
+cluster shows connected in Orca but no inventory data is showing up
+```
+
+[Full Documentation →](skills/orca-k8s-connector-troubleshoot/)
 
 </details>
 
