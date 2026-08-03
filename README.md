@@ -1027,7 +1027,7 @@ Self-serve troubleshooting for the Kubernetes Connector (K8s Tunnel Client, Helm
 **Features:**
 - Triages input into install-time (chart never deployed) vs. runtime (deployed, tunnel/scan not working), starting with a sanity check on whether the cluster needs the Connector at all
 - Includes a symptom → category quick-reference table so a pasted error jumps straight to the fix instead of scanning the full list
-- Covers 15 known failure categories: TLS/network connectivity, RBAC, image pulls, bad `--set` parameters, version incompatibility, duplicate cluster entries, resource constraints, custom namespaces, expired service-account tokens (K8s 1.30+), API rate limiting, tunnel auth drops, proxy misconfiguration (including TLS-inspecting proxies), DNS failures, OpenShift SCC issues, and "connected but no scan data"
+- Covers 15 known failure categories: TLS/network connectivity, RBAC, image pulls, bad `--set` parameters, version incompatibility, duplicate cluster entries, resource constraints, custom namespaces, expired service-account tokens (K8s 1.30+), NetworkPolicy blocking API-server egress, tunnel auth drops, proxy misconfiguration (including TLS-inspecting proxies), DNS failures, OpenShift SCC issues, and "connected but no scan data"
 - Recognizes platform limitations the customer can't self-fix (e.g. BYOC accounts don't run Kubernetes scanning, stale tunnel targets, a known AKS tunnel-crash bug) and escalates instead of looping — while pointing to the self-service delete API for duplicate cluster entries instead of escalating that case
 - Produces a structured support handoff summary (cluster type, connector version, category, IDs, logs) when it can't resolve the issue
 

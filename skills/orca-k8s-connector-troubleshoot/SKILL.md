@@ -73,7 +73,7 @@ Scan for the phrase closest to what the customer reported, then jump to that cat
 | Pod `OOMKilled`, or `Pending` with insufficient CPU/memory events | [7. Resource constraints](#7-resource-constraints) |
 | `helm install` says a secret doesn't exist, but `kubectl get secret` shows it does | [8. Custom namespace issues](#8-custom-namespace-issues) |
 | Pod `Running`, but `Unauthorized`/`401` when reading the cluster API | [9. Service-account token expired (K8s 1.30+)](#9-service-account-token-expired-k8s-130) |
-| Pod `Running`, tunnel up, but `context deadline exceeded` listing resources | [10. Rate limiter reaching the K8s API](#10-rate-limiter--context-deadline-exceeded-reaching-the-kubernetes-api) |
+| Pod `Running`, tunnel up, but `context deadline exceeded` listing resources | [10. NetworkPolicy blocks API-server egress](#10-networkpolicy-blocks-api-server-egress-causing-context-deadline-exceeded) |
 | Tunnel connects then drops on auth/token rejection, or `K8s Tunnel client is unreachable` after re-onboarding | [11. Tunnel drops / stale tunnel target](#11-tunnel-establishes-then-drops-on-authtoken-errors-or-a-stale-tunnel-target) |
 | Works with no proxy, breaks once `proxyURL` is set | [12. Proxy misconfiguration](#12-proxy-misconfiguration) |
 | `no such host` resolving `tunnelAddr` | [13. DNS resolution failures](#13-dns-resolution-failures) |
@@ -175,7 +175,7 @@ Each category below follows the same shape: what it looks like, the one-line fix
        tunnelToken: <tunnelTokenValue>
      ```
      then `--set existingSecret=existing-secret`.
-  4. If credentials may have been compromised or just need rotating without a full reinstall, there's a tunnel-renew API: `POST /tunnel/<tunnel_id>/renew` (API-only, not in the UI yet).
+  4. If credentials may have been compromised or just need rotating without a full reinstall, contact Orca support to rotate the tunnel credentials without a reinstall.
 
 #### 5. Kubernetes version incompatibility
 - **Symptom**: the chart installs but the pod fails on startup with an API compatibility error, or specific chart resources fail to apply.
@@ -190,7 +190,7 @@ Each category below follows the same shape: what it looks like, the one-line fix
 - **Steps**:
   1. Before using `automation=true`, confirm the cluster isn't already discoverable under the customer's connected cloud account.
   2. If a duplicate already exists: in Cluster Management, identify the **self-managed** row specifically (filter by cluster name — don't delete the correctly-typed EKS/AKS/GKE row) and note its `cluster_id` and `cloud_account_id`.
-  3. Call `DELETE /api/cloudaccount/{cloud_account_id}/k8s_cluster/{cluster_id}` (see [delete-specific-k8-cluster](https://docs.orcasecurity.io/docs/en/delete-specific-k8-cluster)). Any role with `kubernetes.write` permission (e.g. org admin) can call this — it soft-deletes the self-managed row and it disappears from Cluster Management immediately.
+  3. This delete is destructive and cannot be undone from the UI — before calling it, confirm the exact `cluster_id`/`cloud_account_id` pair with the user so the correct row is removed. Then call `DELETE /api/cloudaccount/{cloud_account_id}/k8s_cluster/{cluster_id}` (see [delete-specific-k8-cluster](https://docs.orcasecurity.io/docs/en/delete-specific-k8-cluster)). Any role with `kubernetes.write` permission (e.g. org admin) can call this — it soft-deletes the self-managed row and it disappears from Cluster Management immediately.
   4. If the delete doesn't stick, or you're not sure which row is the stale one, escalate (Step 4) with both cluster entries' names/IDs rather than guessing and deleting the wrong one.
 
 #### 7. Resource constraints
@@ -213,17 +213,17 @@ Each category below follows the same shape: what it looks like, the one-line fix
   {"kind":"Status","apiVersion":"v1","status":"Failure","message":"Unauthorized","reason":"Unauthorized","code":401}
   ```
 - **Fix**: upgrade the K8s Connector to the latest chart version.
-- **Why**: starting with Kubernetes 1.30, projected service-account tokens expire (they didn't before). The Connector only gained automatic service-account token rotation in **helm chart v1.0.39 / app v1.0.33** — an older Connector on a 1.30+ cluster will hit this every time the token expires.
+- **Why**: bound service-account tokens have had an expiry since around Kubernetes 1.21, but many clients kept working past that expiry without the API server rejecting the stale token. Starting around Kubernetes 1.30, the API server began enforcing that expiry and rejecting stale tokens outright. The Connector only gained automatic service-account token rotation in **helm chart v1.0.39 / app v1.0.33** — an older Connector on a 1.30+ cluster will hit this every time its token goes stale.
 - **Steps**:
   1. Check the cluster's Kubernetes version (`kubectl version`) and the Connector's chart/app version (`helm list -n <namespace>`, or the image tag via `kubectl describe pod`).
   2. If the cluster is 1.30+ and the Connector predates v1.0.39 (helm)/v1.0.33 (app), upgrade it — this alone resolves the vast majority of these cases.
   3. If it's already on a current version and still failing, collect pod logs (`kubectl logs -n <namespace> $(kubectl get pods -n <namespace> --no-headers -o custom-columns=":metadata.name" | grep tunnel)`) and escalate (Step 4) — this is a narrower case that needs engineering eyes.
 
-#### 10. Rate limiter / `context deadline exceeded` reaching the Kubernetes API
-- **Symptom**: pod `Running`, tunnel may be up, but logs show `context deadline exceeded` or throttling when the connector tries to list cluster resources.
-- **Fix**: confirm the `ClusterRoleBinding` is actually bound to the running ServiceAccount, and that NetworkPolicies allow pod-to-API-server traffic.
-- **Why**: the connector can't reach the in-cluster API server — either the `ClusterRoleBinding` isn't actually bound to the running ServiceAccount, or a NetworkPolicy blocks pod-to-API-server traffic.
-- **Steps**: confirm the `ClusterRoleBinding` binds the ServiceAccount actually in use (`orca-k8s-collector` by default) to the `orca-k8s-collector-role` `ClusterRole`; `kubectl auth can-i --list --as=system:serviceaccount:<namespace>:orca-k8s-collector`; check NetworkPolicies allow egress from the tunnel pod to the API server's Service IP.
+#### 10. NetworkPolicy blocks API-server egress causing `context deadline exceeded`
+- **Symptom**: pod `Running`, tunnel up, but logs show `context deadline exceeded` when the connector tries to reach the in-cluster API server to list resources.
+- **Fix**: confirm NetworkPolicies allow egress from the tunnel pod to the API server's Service IP.
+- **Why**: a NetworkPolicy is blocking egress from the tunnel pod to the in-cluster API server, so requests time out. (If it's actually a `forbidden`/`Unauthorized` response rather than a timeout, that's an RBAC issue — see Category 2 instead.)
+- **Steps**: check NetworkPolicies applied to the tunnel pod's namespace/labels allow egress to the API server's Service IP/port (typically the `kubernetes` Service in `default`, port 443); temporarily loosening the policy to confirm this is the cause, then scoping it correctly, is the fastest way to verify.
 
 #### 11. Tunnel establishes, then drops on auth/token errors, or a stale tunnel target
 - **Symptom**: logs show a successful initial connection, then periodic disconnects citing auth/token rejection; or re-onboarding fails with something like:
@@ -235,7 +235,7 @@ Each category below follows the same shape: what it looks like, the one-line fix
 - **Why**: usually a `tunnelToken` reused from a different cluster's install, or — if this is a reconnect after a previous tunnel was supposedly deleted — a **stale tunnel target** left over on Orca's side.
 - **Steps**:
   1. Confirm the `tunnelId`/`tunnelToken` pair is unmodified from the original install command.
-  2. **Check whether this cluster actually needs the Connector at all** — a recurring cause of this exact error is a customer running the Connector on a cluster that's already public. If so, the fix isn't cleanup, it's removing the Connector: `helm uninstall <release> -n <namespace>` **first**, then ask Orca to clean up the tunnel target — doing it in the other order just recreates the tunnel entry.
+  2. **Check whether this cluster actually needs the Connector at all** — a recurring cause of this exact error is a customer running the Connector on a cluster that's already public. If so, the fix isn't cleanup, it's removing the Connector. `helm uninstall` is destructive — confirm the exact release name and namespace with the user before running it: `helm uninstall <release> -n <namespace>` **first**, then ask Orca to clean up the tunnel target — doing it in the other order just recreates the tunnel entry.
   3. If neither applies and this follows a prior delete/re-onboard, stale-tunnel cleanup is not customer-self-serviceable — escalate (Step 4) with the `tunnel_target_id` (or cluster/tunnel IDs from the error) so support can clear it.
 
 #### 12. Proxy misconfiguration
@@ -243,7 +243,7 @@ Each category below follows the same shape: what it looks like, the one-line fix
 - **Fix**: validate the `proxyURL` scheme/credentials, and rule out TLS interception if it still fails.
 - **Why**: `proxyURL` follows FRP's URL format — scheme, optional embedded credentials, host, and port — with `http`, `socks5`, and `ntlm` schemes all supported. A wrong scheme, bad credentials, or a proxy allowlist that doesn't include the tunnel endpoint will break the connection.
 - **Steps**:
-  1. Validate the `proxyURL` scheme and credentials against the chart's own documented format (`helm/values.yaml`'s `proxyURL` comment, and the README's "Proxy Configuration" section, in the `k8s-tunnel-client` repo). Supported schemes: `http`, `socks5`, and `ntlm`, each optionally with credentials placed immediately before the host — e.g. a `socks5` proxy with authentication looks like `socks5://[credentials]@proxy.company.com:1080`, and one with no authentication drops the `[credentials]@` segment entirely.
+  1. Validate the `proxyURL` scheme and credentials. Supported schemes are `http`, `socks5`, and `ntlm`, each optionally with credentials placed immediately before the host — e.g. a `socks5` proxy with authentication looks like `socks5://[credentials]@proxy.company.com:1080`, and one with no authentication drops the `[credentials]@` segment entirely.
   2. Confirm the proxy itself permits egress to the tunnel endpoint, then re-check pod logs for the specific `frpc` connection error.
   3. **If `proxyURL` is set correctly and the proxy allows the connection but the tunnel still fails on TLS**, ask whether it's a **transparent/TLS-inspecting proxy** — this class of proxy replaces the certificate chain in transit, and the connector will reject the swapped cert since it expects Orca's own certificate. The fix here is a proxy-side exclusion for the tunnel FQDN from TLS inspection, not a Connector-side change.
 
@@ -327,8 +327,8 @@ If nothing matches confidently, skip straight to Step 3's clarifying questions i
 
 Recognize these so the skill doesn't send a customer in circles trying to self-fix something that needs an Orca-side change, or chase a known bug as if it were their own misconfiguration:
 - **BYOC accounts don't run Kubernetes scanning** (Category 15) — by design, not a bug.
-- **Stale tunnel targets** can block re-onboarding or cause auth drops (Category 11) and require Orca-side cleanup — fast for support to clear via `orcadmin`, but not customer-facing.
-- **AKS tunnel crashes on control-plane connectivity reset** — tracked as an open, engineering-owned critical issue (ORCACFR-11420). If an AKS cluster's tunnel crashes repeatedly with a connectivity-reset signature and no clear misconfiguration, escalate referencing this ticket rather than continuing to troubleshoot it as a customer-side problem.
+- **Stale tunnel targets** can block re-onboarding or cause auth drops (Category 11) and require Orca-side cleanup — fast for Orca support to clear; open a ticket.
+- **AKS clusters have a known issue with repeated tunnel crashes after control-plane connectivity resets** — if you see this signature, escalate to Orca support rather than continuing to troubleshoot it as a customer-side problem.
 
 Duplicate self-managed/auto-discovered cluster entries (Category 6) are **no longer** in this list — they're now self-service via the delete API in that category.
 
@@ -336,11 +336,11 @@ Duplicate self-managed/auto-discovered cluster entries (Category 6) are **no lon
 
 - [Connecting Clusters Using Kubernetes Connector](https://docs.orcasecurity.io/docs/connecting-clusters-using-kubernetes-connector) — install steps, static IP allowlist, self-managed cluster identifier formats, OpenShift deployment notes.
 - [Delete a specific K8s cluster](https://docs.orcasecurity.io/docs/en/delete-specific-k8-cluster) — the self-service API for removing a stale/duplicate cluster entry (Category 6).
-- Proxy and OpenShift configuration have no dedicated public doc page beyond the above — the chart itself is the source of truth. In the `k8s-tunnel-client` repo: `helm/values.yaml`'s `proxyURL`, `openshift`, and `openshiftSCC` comments, and the README's "Proxy Configuration" section and configuration options table.
+- Proxy (`proxyURL`) and OpenShift (`openshift`, `openshiftSCC`) install parameters are covered inline in Categories 12 and 14 above — there is no additional dedicated public doc page beyond the **Connecting Clusters** guide linked above.
 
 ## Implementation Notes
 
-1. **Validate before launch** against a sample of real past support tickets for the K8s Connector — the categories above were cross-checked against real customer threads in `#domain-k8s-container-security`, but coverage should be re-confirmed periodically as the connector evolves.
+1. **Validate before launch** against a sample of real past support tickets for the K8s Connector — the categories above were cross-checked against real customer cases, but coverage should be re-confirmed periodically as the connector evolves.
 2. **Don't guess when input is ambiguous** — a wrong category sends the customer down the wrong remediation path and erodes trust in the skill faster than admitting uncertainty and asking a follow-up.
 3. **Always sanity-check "does this cluster need the Connector at all", then distinguish install-time from runtime** (Step 1) — most of the categories only make sense once you know which side of that line the customer is on, and a surprising number of "connectivity" reports are actually a public cluster that never needed the Connector.
 4. **Recognize platform limitations and known bugs as out of customer scope** — don't ask a customer to retry indefinitely against something engineering needs to fix; escalate cleanly instead, citing the tracking ticket when one exists.
