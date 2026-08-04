@@ -8,6 +8,7 @@ Everything provider-specific for the MFA sweep: what each cloud exposes, how to 
 - [No-MFA alert types](#no-mfa-alert-types)
 - [Enforcement mechanisms](#enforcement-mechanisms)
 - [Remove console access](#remove-console-access)
+- [Password-usage signal](#password-usage-signal)
 - [Provider-specific edge cases](#provider-specific-edge-cases)
 
 ## Capability matrix
@@ -75,6 +76,20 @@ For bucket 8 only, and bucket 8 requires **positive evidence the password is unu
 - **OCI** — remove the console-password capability (rollback: restore the capability, password must be reset)
 - **Tencent** — disable console login (rollback: re-enable it, password must be reset)
 - **Azure** — no separable password facet; its never-signs-in case is the inactive hand-off
+
+## Password-usage signal
+
+Bucket 8 (remove an unused console password) needs password usage to be *separable* from general activity. Where it isn't, the user belongs in a different bucket — these are the field-level reasons:
+
+| Provider | Password-usage fields | Consequence |
+|----------|----------------------|-------------|
+| AWS | `PasswordRecentlyUsed`, `PasswordLastUsed`, distinct from `LastActiveTime` | Separable — **bucket 8 fires here** |
+| Alibaba | `PasswordLastUsed`, `LastLogin`, `LastLoginTime`, `LastActiveTime` all hold the same value, with `IsIdentityActive` derived from it | Collapsed — password staleness *is* inactivity → bucket 5, removal via the cleanup flow |
+| OCI | `PasswordLastUsed`, `LastSuccessfulLoginTime`, `LastActiveTime` are one timestamp under three names, same derivation | Collapsed → bucket 5, removal via the cleanup flow |
+| Tencent | **none** — the user model carries no password-usage or last-login field, only key timestamps | No signal → bucket 9 as usage-unknown; remove-access unavailable |
+| Azure / GCP | no separable password facet at all | Remove-access does not apply; never-signs-in is the inactive hand-off |
+
+**Tencent's `LastActiveTime` is not a substitute.** It is the maximum of console login and both access keys' last-used dates, computed at scan time and not decomposable afterward, so a "recent" user may never have signed in. When it exactly equals an access key's last-used date, treat it as key activity, not sign-in evidence — and make no urgency claim from it.
 
 ## Provider-specific edge cases
 
