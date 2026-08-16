@@ -8,7 +8,7 @@
   "plugins": [
     {
       "name": "orca-skills",
-      "description": "Orca Security skills collection for cloud security workflows",
+      "description": "Skills and plugins to accelerate security workflows with the Orca Cloud Platform",
       "version": "2.0.0",
       "source": "./",
       "author": {
