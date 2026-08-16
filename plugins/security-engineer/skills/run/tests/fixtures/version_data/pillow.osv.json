@@ -1,0 +1,1986 @@
+{
+ "vulns": [
+  {
+   "id": "GHSA-3f63-hfp8-52jq",
+   "aliases": [
+    "BIT-pillow-2023-50447",
+    "CVE-2023-50447",
+    "PYSEC-2026-457"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "10.2.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "GHSA-44wm-f244-xhp3",
+   "aliases": [
+    "BIT-pillow-2024-28219",
+    "CVE-2024-28219",
+    "PYSEC-2026-1793"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "10.3.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "GHSA-45hq-cxwh-f6vc",
+   "aliases": [
+    "BIT-pillow-2026-55379",
+    "CVE-2026-55379",
+    "PYSEC-2026-2255"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "12.3.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "GHSA-4fx9-vc88-q2xc",
+   "aliases": [],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "9.0.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "GHSA-4x4j-2g7c-83w6",
+   "aliases": [
+    "BIT-pillow-2026-55798",
+    "CVE-2026-55798",
+    "PYSEC-2026-2257"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "12.3.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "GHSA-5x94-69rx-g8h2",
+   "aliases": [
+    "BIT-pillow-2026-54060",
+    "CVE-2026-54060",
+    "PYSEC-2026-2254"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "12.3.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "GHSA-5xmw-vc9v-4wf2",
+   "aliases": [
+    "BIT-pillow-2026-42309",
+    "CVE-2026-42309",
+    "PYSEC-2026-2251"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "11.2.1"
+        },
+        {
+         "fixed": "12.2.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "GHSA-62p4-gmf7-7g93",
+   "aliases": [
+    "BIT-pillow-2026-54058",
+    "CVE-2026-54058",
+    "PYSEC-2026-3493"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "12.3.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "GHSA-6r8x-57c9-28j4",
+   "aliases": [
+    "BIT-pillow-2026-59199",
+    "CVE-2026-59199",
+    "PYSEC-2026-3451"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "12.3.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "GHSA-8ghj-p4vj-mr35",
+   "aliases": [
+    "BIT-pillow-2023-44271",
+    "CVE-2023-44271",
+    "PYSEC-2023-227"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "10.0.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "GHSA-8v84-f9pq-wr9x",
+   "aliases": [
+    "BIT-pillow-2026-54059",
+    "CVE-2026-54059",
+    "PYSEC-2026-2253"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "12.3.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "GHSA-8vj2-vxx3-667w",
+   "aliases": [
+    "BIT-pillow-2022-22817",
+    "CVE-2022-22817",
+    "PYSEC-2022-10"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "9.0.1"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "GHSA-98vv-pw6r-q6q4",
+   "aliases": [
+    "BIT-pillow-2021-23437",
+    "CVE-2021-23437",
+    "PYSEC-2021-317",
+    "SNYK-PYTHON-PILLOW-1319443"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "5.2.0"
+        },
+        {
+         "fixed": "8.3.2"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "GHSA-9hw9-ch79-4vh6",
+   "aliases": [
+    "BIT-pillow-2026-59205",
+    "CVE-2026-59205",
+    "PYSEC-2026-3453"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "12.3.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "GHSA-9j59-75qj-795w",
+   "aliases": [
+    "BIT-pillow-2022-24303",
+    "CVE-2022-24303",
+    "PYSEC-2022-168"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "9.0.1"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "GHSA-cfh3-3jmp-rvhc",
+   "aliases": [
+    "BIT-pillow-2026-25990",
+    "CVE-2026-25990",
+    "PYSEC-2026-2249"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "10.3.0"
+        },
+        {
+         "fixed": "12.1.1"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "GHSA-fj7v-r99m-22gq",
+   "aliases": [
+    "BIT-pillow-2026-59198",
+    "CVE-2026-59198",
+    "PYSEC-2026-3494"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "5.2.0"
+        },
+        {
+         "fixed": "12.3.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "GHSA-hr8g-f6r6-mr22",
+   "aliases": [
+    "BIT-pillow-2022-30595",
+    "CVE-2022-30595",
+    "PYSEC-2022-43145"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "9.1.0"
+        },
+        {
+         "fixed": "9.1.1"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "GHSA-j7hp-h8jx-5ppr",
+   "aliases": [
+    "A-299477569",
+    "ASB-A-299477569",
+    "CVE-2023-4863",
+    "CVE-2023-5129",
+    "PYSEC-2026-1794",
+    "RUSTSEC-2023-0060",
+    "RUSTSEC-2023-0061"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "10.0.1"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "GHSA-jjj6-mw9f-p565",
+   "aliases": [
+    "BIT-pillow-2026-59200",
+    "CVE-2026-59200",
+    "PYSEC-2026-3495"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "5.1.0"
+        },
+        {
+         "fixed": "12.3.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "GHSA-m2vv-5vj5-2hm7",
+   "aliases": [
+    "BIT-pillow-2022-45198",
+    "CVE-2022-45198",
+    "PYSEC-2022-42979"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "9.2.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "GHSA-pg7v-jwj7-p798",
+   "aliases": [
+    "BIT-pillow-2026-59203",
+    "CVE-2026-59203",
+    "PYSEC-2026-3452"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "12.0.0"
+        },
+        {
+         "fixed": "12.3.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "GHSA-phj9-mv4w-65pm",
+   "aliases": [
+    "BIT-pillow-2026-55380",
+    "CVE-2026-55380",
+    "PYSEC-2026-2256"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "12.3.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "GHSA-pw3c-h7wp-cvhx",
+   "aliases": [
+    "BIT-pillow-2022-22815",
+    "CVE-2022-22815",
+    "PYSEC-2022-8"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "9.0.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "GHSA-pwv6-vv43-88gr",
+   "aliases": [
+    "BIT-pillow-2026-42311",
+    "CVE-2026-42311",
+    "PYSEC-2026-2252"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "10.3.0"
+        },
+        {
+         "fixed": "12.2.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "GHSA-q4mp-jvh2-76fj",
+   "aliases": [
+    "BIT-pillow-2022-45199",
+    "CVE-2022-45199",
+    "PYSEC-2022-42980"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "9.2.0"
+        },
+        {
+         "fixed": "9.3.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "GHSA-r73j-pqj5-w3x7",
+   "aliases": [
+    "BIT-pillow-2026-42310",
+    "CVE-2026-42310",
+    "PYSEC-2026-2874"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "4.2.0"
+        },
+        {
+         "fixed": "12.2.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "GHSA-vjc4-5qp5-m44j",
+   "aliases": [
+    "BIT-pillow-2026-59204",
+    "CVE-2026-59204",
+    "PYSEC-2026-3496"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "8.2.0"
+        },
+        {
+         "fixed": "12.3.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "GHSA-whj4-6x5x-4v2j",
+   "aliases": [
+    "BIT-pillow-2026-40192",
+    "CVE-2026-40192",
+    "PYSEC-2026-2250"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "10.3.0"
+        },
+        {
+         "fixed": "12.2.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "GHSA-wjx4-4jcj-g98j",
+   "aliases": [
+    "BIT-pillow-2026-42308",
+    "CVE-2026-42308",
+    "PYSEC-2026-165"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "12.2.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "GHSA-xg8h-j46f-w952",
+   "aliases": [
+    "BIT-pillow-2025-48379",
+    "CVE-2025-48379",
+    "PYSEC-2025-61"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "11.2.0"
+        },
+        {
+         "fixed": "11.3.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "GHSA-xj96-63gp-2gmr",
+   "aliases": [
+    "BIT-pillow-2026-59197",
+    "CVE-2026-59197",
+    "PYSEC-2026-3454"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "12.3.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "GHSA-xrcv-f9gm-v42c",
+   "aliases": [
+    "BIT-pillow-2022-22816",
+    "CVE-2022-22816",
+    "PYSEC-2022-9"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "9.0.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "PYSEC-2021-317",
+   "aliases": [
+    "BIT-pillow-2021-23437",
+    "CVE-2021-23437",
+    "GHSA-98vv-pw6r-q6q4",
+    "SNYK-PYTHON-PILLOW-1319443"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "8.3.2"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "PYSEC-2022-10",
+   "aliases": [
+    "BIT-pillow-2022-22817",
+    "CVE-2022-22817",
+    "GHSA-8vj2-vxx3-667w"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "9.0.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "PYSEC-2022-168",
+   "aliases": [
+    "BIT-pillow-2022-24303",
+    "CVE-2022-24303",
+    "GHSA-9j59-75qj-795w"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "9.0.1"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "PYSEC-2022-42979",
+   "aliases": [
+    "BIT-pillow-2022-45198",
+    "CVE-2022-45198",
+    "GHSA-m2vv-5vj5-2hm7"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "9.2.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "PYSEC-2022-42980",
+   "aliases": [
+    "BIT-pillow-2022-45199",
+    "CVE-2022-45199",
+    "GHSA-q4mp-jvh2-76fj"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "9.2.0"
+        },
+        {
+         "fixed": "9.3.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "PYSEC-2022-43145",
+   "aliases": [
+    "BIT-pillow-2022-30595",
+    "CVE-2022-30595",
+    "GHSA-hr8g-f6r6-mr22"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "9.1.0"
+        },
+        {
+         "fixed": "9.1.1"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "PYSEC-2022-8",
+   "aliases": [
+    "BIT-pillow-2022-22815",
+    "CVE-2022-22815",
+    "GHSA-pw3c-h7wp-cvhx"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "9.0.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "PYSEC-2022-9",
+   "aliases": [
+    "BIT-pillow-2022-22816",
+    "CVE-2022-22816",
+    "GHSA-xrcv-f9gm-v42c"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "9.0.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "PYSEC-2023-175",
+   "aliases": [],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "10.0.1"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "PYSEC-2023-227",
+   "aliases": [
+    "BIT-pillow-2023-44271",
+    "CVE-2023-44271",
+    "GHSA-8ghj-p4vj-mr35"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "10.0.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "PYSEC-2025-61",
+   "aliases": [
+    "BIT-pillow-2025-48379",
+    "CVE-2025-48379",
+    "GHSA-xg8h-j46f-w952"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "11.2.0"
+        },
+        {
+         "fixed": "11.3.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "PYSEC-2026-165",
+   "aliases": [
+    "BIT-pillow-2026-42308",
+    "CVE-2026-42308",
+    "GHSA-wjx4-4jcj-g98j"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "12.2.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "PYSEC-2026-1793",
+   "aliases": [
+    "BIT-pillow-2024-28219",
+    "CVE-2024-28219",
+    "GHSA-44wm-f244-xhp3"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "10.3.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "PYSEC-2026-1794",
+   "aliases": [
+    "A-299477569",
+    "ASB-A-299477569",
+    "CVE-2023-4863",
+    "CVE-2023-5129",
+    "GHSA-j7hp-h8jx-5ppr",
+    "RUSTSEC-2023-0060",
+    "RUSTSEC-2023-0061"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "10.0.1"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "PYSEC-2026-2249",
+   "aliases": [
+    "BIT-pillow-2026-25990",
+    "CVE-2026-25990",
+    "GHSA-cfh3-3jmp-rvhc"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "10.3.0"
+        },
+        {
+         "fixed": "12.1.1"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "PYSEC-2026-2250",
+   "aliases": [
+    "BIT-pillow-2026-40192",
+    "CVE-2026-40192",
+    "GHSA-whj4-6x5x-4v2j"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "10.3.0"
+        },
+        {
+         "fixed": "12.2.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "PYSEC-2026-2251",
+   "aliases": [
+    "BIT-pillow-2026-42309",
+    "CVE-2026-42309",
+    "GHSA-5xmw-vc9v-4wf2"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "11.2.1"
+        },
+        {
+         "fixed": "12.2.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "PYSEC-2026-2252",
+   "aliases": [
+    "BIT-pillow-2026-42311",
+    "CVE-2026-42311",
+    "GHSA-pwv6-vv43-88gr"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "10.3.0"
+        },
+        {
+         "fixed": "12.2.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "PYSEC-2026-2253",
+   "aliases": [
+    "BIT-pillow-2026-54059",
+    "CVE-2026-54059",
+    "GHSA-8v84-f9pq-wr9x"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "12.3.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "PYSEC-2026-2254",
+   "aliases": [
+    "BIT-pillow-2026-54060",
+    "CVE-2026-54060",
+    "GHSA-5x94-69rx-g8h2"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "12.3.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "PYSEC-2026-2255",
+   "aliases": [
+    "BIT-pillow-2026-55379",
+    "CVE-2026-55379",
+    "GHSA-45hq-cxwh-f6vc"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "12.3.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "PYSEC-2026-2256",
+   "aliases": [
+    "BIT-pillow-2026-55380",
+    "CVE-2026-55380",
+    "GHSA-phj9-mv4w-65pm"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "12.3.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "PYSEC-2026-2257",
+   "aliases": [
+    "BIT-pillow-2026-55798",
+    "CVE-2026-55798",
+    "GHSA-4x4j-2g7c-83w6"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "12.3.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "PYSEC-2026-2874",
+   "aliases": [
+    "BIT-pillow-2026-42310",
+    "CVE-2026-42310",
+    "GHSA-r73j-pqj5-w3x7"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "4.2.0"
+        },
+        {
+         "fixed": "12.2.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "PYSEC-2026-3451",
+   "aliases": [
+    "BIT-pillow-2026-59199",
+    "CVE-2026-59199",
+    "GHSA-6r8x-57c9-28j4"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "12.3.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "PYSEC-2026-3452",
+   "aliases": [
+    "BIT-pillow-2026-59203",
+    "CVE-2026-59203",
+    "GHSA-pg7v-jwj7-p798"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "12.0.0"
+        },
+        {
+         "fixed": "12.3.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "PYSEC-2026-3453",
+   "aliases": [
+    "BIT-pillow-2026-59205",
+    "CVE-2026-59205",
+    "GHSA-9hw9-ch79-4vh6"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "12.3.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "PYSEC-2026-3454",
+   "aliases": [
+    "BIT-pillow-2026-59197",
+    "CVE-2026-59197",
+    "GHSA-xj96-63gp-2gmr"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "12.3.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "PYSEC-2026-3493",
+   "aliases": [
+    "BIT-pillow-2026-54058",
+    "CVE-2026-54058",
+    "GHSA-62p4-gmf7-7g93"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "12.3.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "PYSEC-2026-3494",
+   "aliases": [
+    "BIT-pillow-2026-59198",
+    "CVE-2026-59198",
+    "GHSA-fj7v-r99m-22gq"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "5.2.0"
+        },
+        {
+         "fixed": "12.3.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "PYSEC-2026-3495",
+   "aliases": [
+    "BIT-pillow-2026-59200",
+    "CVE-2026-59200",
+    "GHSA-jjj6-mw9f-p565"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "5.1.0"
+        },
+        {
+         "fixed": "12.3.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "PYSEC-2026-3496",
+   "aliases": [
+    "BIT-pillow-2026-59204",
+    "CVE-2026-59204",
+    "GHSA-vjc4-5qp5-m44j"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "8.2.0"
+        },
+        {
+         "fixed": "12.3.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "PYSEC-2026-457",
+   "aliases": [
+    "BIT-pillow-2023-50447",
+    "CVE-2023-50447",
+    "GHSA-3f63-hfp8-52jq"
+   ],
+   "affected": [
+    {
+     "package": {
+      "name": "pillow",
+      "ecosystem": "PyPI",
+      "purl": "pkg:pypi/pillow"
+     },
+     "ranges": [
+      {
+       "type": "ECOSYSTEM",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "10.2.0"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}
