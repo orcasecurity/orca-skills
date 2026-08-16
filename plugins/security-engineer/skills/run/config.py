@@ -15,9 +15,19 @@ from pathlib import Path
 
 @dataclass
 class OrcaCheckConfig:
-    """Controls the post-PR Orca GitHub App check gate."""
+    """Controls the post-PR Orca GitHub App check gate.
+
+    check_name is matched as a case-insensitive *substring* against the names of
+    the check runs on the PR head. The Orca GitHub App posts one per scanner —
+    "Orca Security - SAST", "Orca Security - Vulnerabilities", "Orca Security -
+    IaC", "Orca Security - Secrets", "Orca Security - OSS Licenses" — so the
+    common prefix is what matches them all. A value matching none of them is not
+    an error the gate can see: it takes the on_not_found path and the strongest
+    gate in the harness silently does nothing. Override it here if your tenant
+    names its checks differently (see config.example.yaml).
+    """
     enabled: bool = True
-    check_name: str = "orca-security-us"
+    check_name: str = "Orca Security"
     timeout_sec: int = 600
     poll_interval_sec: int = 15
     max_retries: int = 1

@@ -1142,7 +1142,7 @@ class TestOrcaCheckGate(unittest.TestCase):
         """Orca check completed with success → passed=True."""
         mock_time.side_effect = [0, 0, 1]  # deadline, grace_deadline, loop check
         mock_find.return_value = {
-            "id": 1, "status": "completed", "conclusion": "success", "name": "orca-security-us",
+            "id": 1, "status": "completed", "conclusion": "success", "name": "Orca Security - Vulnerabilities",
         }
         result = orca_check_gate("https://github.com/owner/repo/pull/1")
         self.assertTrue(result.passed)
@@ -1156,7 +1156,7 @@ class TestOrcaCheckGate(unittest.TestCase):
         """Orca check completed with failure → passed=False, failures populated."""
         mock_time.side_effect = [0, 0, 1]
         mock_find.return_value = {
-            "id": 42, "status": "completed", "conclusion": "failure", "name": "orca-security-us",
+            "id": 42, "status": "completed", "conclusion": "failure", "name": "Orca Security - Vulnerabilities",
         }
         mock_ann.return_value = [
             OrcaCheckFinding(file="app.py", line=10, message="SQL injection", severity="failure"),
@@ -1191,7 +1191,7 @@ class TestOrcaCheckGate(unittest.TestCase):
         # loop 2: time.monotonic() < deadline → 601 < 600 → False → exit loop
         mock_monotonic.side_effect = [0, 0, 1, 601]
         mock_find.return_value = {
-            "id": 1, "status": "in_progress", "conclusion": "", "name": "orca-security-us",
+            "id": 1, "status": "in_progress", "conclusion": "", "name": "Orca Security - Vulnerabilities",
         }
         result = orca_check_gate("https://github.com/owner/repo/pull/1", timeout_sec=600)
         self.assertFalse(result.passed)
@@ -1713,7 +1713,7 @@ class TestConfig(unittest.TestCase):
     def test_defaults(self):
         cfg = Config()
         self.assertTrue(cfg.orca_check.enabled)
-        self.assertEqual(cfg.orca_check.check_name, "orca-security-us")
+        self.assertEqual(cfg.orca_check.check_name, "Orca Security")
         self.assertEqual(cfg.orca_check.timeout_sec, 600)
         self.assertEqual(cfg.orca_check.max_retries, 1)
         self.assertEqual(cfg.max_parallel_fixes, 4)
@@ -1724,7 +1724,7 @@ class TestConfig(unittest.TestCase):
         with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("SECURITY_ENGINEER_CONFIG", None)
             cfg = load_config()
-        self.assertEqual(cfg.orca_check.check_name, "orca-security-us")
+        self.assertEqual(cfg.orca_check.check_name, "Orca Security")
         self.assertEqual(cfg.max_parallel_fixes, 4)
 
     def test_orca_check_config_fields(self):
@@ -2262,8 +2262,8 @@ class TestCiGateOutcomes(unittest.TestCase):
     def test_cases(self):
         CASES = [
             ("all checks green", 0, "build\tpass", "", True, None),
-            # vulnerable-apps has no GitHub Actions at all, so every PR there
-            # was reported as a CI failure with an empty reason.
+            # A repository with no GitHub Actions at all had every PR reported
+            # as a CI failure with an empty reason.
             ("repo has no CI at all", 1, "",
              "no checks reported on the 'fix/orca-1' branch", True, None),
             ("a check went red", 1, "build\tfail\t1m", "", False, "build"),
