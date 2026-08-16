@@ -44,15 +44,14 @@ and what fails closed: [`HARNESS.md`](HARNESS.md).**
 ### Install the plugin
 
 ```bash
-curl -sL https://raw.githubusercontent.com/igorlopes-orca/security-engineer/main/install.sh | bash
+claude plugin marketplace add orcasecurity/orca-skills
+claude plugin install security-engineer@orcasecurity
 ```
 
-Or manually:
-
-```bash
-claude plugin marketplace add igorlopes-orca/security-engineer
-claude plugin install security-engineer@orca-security
-```
+The same marketplace carries [`orca-skills`](../../README.md), 16 read-only
+skills that answer questions about your *cloud* environment through the Orca MCP
+server. They are a separate install with none of the prerequisites above — this
+plugin is the only one here that writes code and opens pull requests.
 
 ### Set your Orca API token
 
@@ -184,13 +183,15 @@ Secrets live in the environment:
 | `SECURITY_ENGINEER_CONFIG` | No | Path to a YAML file overriding gate and data-layer settings |
 
 Everything else — gate timeouts, retry policy, the Orca check name, the version
-data cache, concurrency caps — is YAML. The keys and their defaults are tabled in
+data cache, concurrency caps — is YAML. [`config.example.yaml`](config.example.yaml)
+is a commented starting point; the keys and their defaults are tabled in
 [`HARNESS.md`](HARNESS.md#configuration).
 
-## Repository layout
+## Plugin layout
 
 ```
-.claude-plugin/              plugin manifest and marketplace definition
+.claude-plugin/plugin.json   plugin manifest (the marketplace manifest lives at
+                             the repository root, which carries two plugins)
 bin/security-engineer        CLI entry point (plugin bin/ is added to PATH)
 commands/script.md           /security-engineer:script — flags, verbatim
 skills/
@@ -208,45 +209,48 @@ skills/
     orca_client.py             Orca API client
     version_data.py            OSV + deps.dev version-decision layer
 HARNESS.md                   how the harness works and why
-.github/workflows/ci.yml     tests and lint on every pull request
-tools/check_manifests.py     static checks on the plugin's own metadata
+config.example.yaml          commented defaults for SECURITY_ENGINEER_CONFIG
+tools/check_manifests.py     static checks on the marketplace's metadata
 ruff.toml                    the lint ruleset CI enforces
-devloop/                     live-run test harness — not shipped with the plugin
-docs/                        design plans
 ```
+
+CI lives at the repository root: [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml),
+path-filtered to this directory.
 
 ## Developing
 
+Every `make` target runs from this directory, not the repository root.
+
 ```bash
-make test                              # 379 unit tests, no token or network
-make lint                              # ruff, shellcheck, plugin metadata
-make fast                              # test → install → reset sandbox → fix one alert → report
-make loop ARGS="--dry-run cve"         # plan only, no writes
-make loop ARGS="sast --max 2"          # any orchestrator filter
+cd plugins/security-engineer
+make test                              # 370 unit tests, no token or network
+make lint                              # ruff, shellcheck, marketplace metadata
+make install                           # install this working tree as the plugin
 ```
 
 Unit tests cover argument parsing, version ordering, manifest parsing and gate
-behaviour on mocked diffs. The pipeline that matters — worktree lifecycle, what
-the gates actually see, whether the Orca check gate fires — only exists in a live
-run, and `devloop/` makes that one command:
+behaviour on mocked diffs. New functions and behaviours need table-driven tests —
+a `CASES` list looped with `self.subTest`, per [`CLAUDE.md`](../../CLAUDE.md).
+
+What the unit suites cannot reach is the part this plugin exists for: worktree
+lifecycle, whether the diff the gates judge is the diff that gets committed,
+whether the Orca check gate fires at all. That needs a token and somewhere to
+open pull requests, so it stays manual — run it against a repository you own
+before changing anything in the gate path:
 
 ```bash
-cp devloop/.env.example devloop/.env   # then fill in ORCA_API_TOKEN
+export ORCA_API_TOKEN=…
+security-engineer --scan               # what is open, read-only
+security-engineer --dry-run cve        # plan only, no writes
+security-engineer cve --max 1          # one real fix, one real PR
 ```
-
-`make fast` runs the orchestrator against a disposable sandbox repo and prints
-per-alert state, PR URLs, Orca check conclusions, and the annotations behind any
-failure. See [`devloop/README.md`](devloop/README.md).
-
-New functions and behaviours need table-driven tests — a `CASES` list looped with
-`self.subTest`, per [`CLAUDE.md`](CLAUDE.md).
 
 ### What CI checks
 
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every pull
-request: `make test` across Python 3.10–3.14, then `make lint`. It runs the same
-Make targets you do, so a green PR is predictable from your terminal rather than
-discovered on the pull request.
+[`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) runs on every pull
+request touching `plugins/security-engineer/**`: `make test` across Python
+3.10–3.14, then `make lint`. It runs the same Make targets you do, so a green PR
+is predictable from your terminal rather than discovered on the pull request.
 
 ```bash
 pip install ruff==0.16.1 shellcheck-py==0.11.0.1 pyyaml==6.0.3   # what CI pins
@@ -254,8 +258,9 @@ pip install ruff==0.16.1 shellcheck-py==0.11.0.1 pyyaml==6.0.3   # what CI pins
 
 Lint rules live in [`ruff.toml`](ruff.toml), selected explicitly so a ruff
 release can't fail a PR that changed nothing. Formatting is not enforced.
-`tools/check_manifests.py` covers what the Python suites can't see: version drift
-between `plugin.json` and `marketplace.json`, a lost executable bit on
+`tools/check_manifests.py` covers what the Python suites can't see, across every
+plugin the marketplace lists: version or description drift between a
+`plugin.json` and the marketplace entry describing it, a lost executable bit on
 `bin/security-engineer`, missing skill or command frontmatter.
 
 `make e2e` stays out of CI — it needs `ORCA_API_TOKEN`, and secrets aren't
@@ -263,18 +268,17 @@ available to pull requests from forks.
 
 ### Running your working tree as the plugin
 
-The dev loop runs `orchestrator.py` from this repo; `/security-engineer:run`
-runs the copy Claude Code made when the plugin was installed. Nothing refreshes
-that copy on its own — `claude plugin update` short-circuits while the version
-in `plugin.json` is unchanged — so the skill will keep running the commit it was
-installed at until you say otherwise.
+`/security-engineer:run` runs the copy Claude Code made when the plugin was
+installed, not the files you are editing. Nothing refreshes that copy on its own
+— `claude plugin update` short-circuits while the version in `plugin.json` is
+unchanged, and installing over an existing install is a no-op — so the skill
+keeps running the commit it went in at until you say otherwise.
 
 ```bash
-make install         # install this working tree as the plugin
-make plugin-status   # is the installed plugin this code? names the files if not
+make install         # point the marketplace here, then reinstall from this tree
 make uninstall       # remove it; marketplace goes back to GitHub
 ```
 
-`make loop` and `make fast` run `make install` as a step, so the skill and the
-dev loop always test the same code. `make uninstall` then `./install.sh` gets
-you back to the published version — worth doing before tagging a release.
+**Run `make install` after every edit you want the skill to see.** It uninstalls
+before installing, which is the only thing that defeats the no-op rule. Changes
+to `SKILL.md` or any frontmatter also need a Claude Code restart to re-register.

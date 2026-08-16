@@ -15,6 +15,7 @@
 ---
 
 ### Table of Contents
+- [Plugins](#plugins)
 - [Skills Overview](#skills-overview)
 - [Installation](#installation)
 - [MCP Configuration](#mcp-configuration)
@@ -24,6 +25,22 @@
 - [Support](#support)
 - [License](#license)
 - [Credits](#credits)
+
+
+## Plugins
+
+This marketplace carries two plugins. They are installed separately, and most
+people want the first one.
+
+| Plugin | What it is | Prerequisites |
+|---|---|---|
+| [`orca-skills`](#skills-overview) | 16 read-only skills that answer questions about your cloud environment through the Orca MCP server | The Orca MCP server. Nothing else |
+| [`security-engineer`](plugins/security-engineer/) | An autonomous agent that **remediates** Orca findings in your source code and opens a pull request per fix | Python 3.10+, authenticated [`gh`](https://cli.github.com/), `ORCA_API_TOKEN` in the environment, network access to OSV.dev and deps.dev |
+
+They answer different questions and are kept apart on purpose: `orca-skills`
+reads and explains your **cloud posture**; `security-engineer` writes code
+against your **repositories**. Installing `orca-skills` does not pull in the
+second plugin or any of its prerequisites.
 
 
 ## Skills Overview
@@ -62,6 +79,8 @@
 > **Pre-audit / pre-investigation:** Account health → Compliance gaps / Investigate (trust the data first)
 >
 > **Connector setup:** Connector troubleshoot → (escalate to support if a known platform limitation)
+>
+> **Code remediation:** CVE blast radius (which cloud assets are hit) → `security-engineer` (fix the repos that ship them, one PR per fix)
 
 ## Installation
 
@@ -71,7 +90,16 @@
 /plugin marketplace add orcasecurity/orca-skills
 ```
 
+Then install whichever plugins you want:
+
+```bash
+claude plugin install orca-skills@orcasecurity          # the 16 MCP skills
+claude plugin install security-engineer@orcasecurity    # autonomous remediation
+```
+
 **Next step:** Configure the Orca Security MCP server (see [MCP Configuration](#mcp-configuration) below).
+`security-engineer` does not use MCP — its setup is in
+[its own README](plugins/security-engineer/README.md).
 
 ### Claude Desktop
 
@@ -125,6 +153,11 @@ Add to your `.mcp.json` (in project root or `~/.claude/.mcp.json`):
 
 **Get your API token:** [Orca API Authentication Guide](https://docs.orcasecurity.io/docs/managing-api-tokens)  
 **MCP Integration Docs:** [Orca MCP Setup](https://orca.security/mcp-server/)
+
+> **The `security-engineer` plugin does not read MCP.** It calls
+> `api.orcasecurity.io/api/serving-layer/query` directly and expects the same
+> token in `ORCA_API_TOKEN` as an environment variable rather than in
+> `.mcp.json`. Configuring one does not configure the other.
 
 
 ## Skill Details
@@ -1045,6 +1078,68 @@ cluster shows connected in Orca but no inventory data is showing up
 
 </details>
 
+<details>
+<summary><strong><a id="security-engineer"></a>security-engineer</strong> — separate plugin</summary>
+
+**"Fix it, and show me the pull request."**
+
+An autonomous remediation agent, shipped as its own plugin because it writes code
+rather than answering questions. For each Orca finding in a repository it cuts an
+isolated git worktree, decides the target version from advisory data where it
+can, invokes a Claude subprocess to apply the change, runs the result through
+five gates, assesses production impact, and opens a pull request carrying that
+assessment. Nothing is merged automatically.
+
+**Requires** Python 3.10+, an authenticated `gh`, and `ORCA_API_TOKEN` in the
+environment — it does not read the MCP server.
+
+**Features:**
+- Covers CVE/SCA, SAST, IaC and secret findings across PyPI, npm, Go, Maven, Cargo, RubyGems and NuGet
+- CVE target versions resolved before the agent runs, from OSV.dev advisory ranges plus the deps.dev published-version list — policy is the lowest release clearing *every* advisory on the installed version
+- Five gates: diff sanity, an LLM verdict, a type-specific verify, the Orca GitHub App check on the opened PR (with its annotations fed back to the agent on retry), and CI
+- Anything a gate could not confirm is labelled `needs-review` rather than passed silently
+- `--dry-run` enforced three independent ways; `--scan` for a read-only risk list
+- Runs as a slash command, as plain English, or as a `security-engineer` binary in any terminal or CI job
+
+**Usage:**
+```bash
+/security-engineer:script high,cve --max 3     # explicit flags, taken as typed
+/security-engineer:script --scan               # list risks, fix nothing
+security-engineer --cve CVE-2020-7471          # same flags, in a shell
+
+# Or use natural language
+remediate all high vulnerabilities, max of 3
+show me what you'd do about the CVEs
+which of our repos still needs the log4shell fix?
+```
+
+**Example output:**
+```markdown
+## Security Engineer — Run Summary
+
+**Repo:** acme/api  |  **Mode:** Live
+
+### Fixed — PRs Opened (2)
+| Alert | Title | Risk | Type | Impact | PR |
+|---|---|---|---|---|---|
+| orca-4060720 | Vulnerable package pillow | high | cve | low | https://github.com/acme/api/pull/218 |
+| orca-4060654 | SQL injection in handler | high | sast | medium 👁 | https://github.com/acme/api/pull/219 |
+
+### Fix Failed (1)
+| Alert | State | Reason |
+|---|---|---|
+| orca-4061002 | FAILED | phase 3: terraform validate exited 1 |
+```
+
+The run exits non-zero if any alert failed, timed out, or landed with red CI —
+so a `&&` chain or a CI wrapper cannot read a broken run as green. `👁` marks a
+gate that passed without being able to confirm; that PR is labelled
+`needs-review`.
+
+[Full Documentation →](plugins/security-engineer/) · [How the harness works →](plugins/security-engineer/HARNESS.md)
+
+</details>
+
 
 ## Contributing
 
@@ -1052,11 +1147,13 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guid
 
 ### Adding a New Skill
 
-1. Create `skills/your-skill/SKILL.md`
-2. Follow the [skill template](docs/skill-template.md)
-3. Add tests if applicable
-4. Update this README
-5. Submit a pull request
+1. Open an issue describing the use case first — see [CONTRIBUTING.md](CONTRIBUTING.md#feature-requests)
+2. Create `skills/your-skill/SKILL.md`, following the shape of an existing skill
+3. Update this README — the overview table and a `<details>` block
+4. Submit a pull request
+
+Changes to the `security-engineer` plugin follow
+[a different checklist](CONTRIBUTING.md#the-security-engineer-plugin).
 
 ## Support
 

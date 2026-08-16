@@ -337,9 +337,10 @@ Max concurrent Claude subprocesses: 3 repos x 4 alerts = 12
 
 ## Orca Check Gate
 
-Phase 4 runs **after the PR is opened**: it polls the Orca GitHub App check (default
-`orca-security-us`) on the PR head commit via the `gh` CLI and treats new findings the
-App reports as regressions introduced by the fix.
+Phase 4 runs **after the PR is opened**: it polls the Orca GitHub App checks (default
+`Orca Security`, matched as a substring against every check on the commit) on the PR head
+via the `gh` CLI and treats new findings the App reports as regressions introduced by the
+fix.
 
 1. **Resolve** the PR head SHA (`gh pr view`)
 2. **Find** the Orca check run among the commit's check-runs (case-insensitive name match)
@@ -362,7 +363,7 @@ Decisions):
 | Key | Default | Meaning |
 |---|---|---|
 | `enabled` | `true` | Run the gate at all |
-| `check_name` | `orca-security-us` | Substring matched against check-run names |
+| `check_name` | `Orca Security` | Substring matched against check-run names |
 | `timeout_sec` | `600` | Max time to wait for the check to complete |
 | `poll_interval_sec` | `15` | Delay between polls |
 | `max_retries` | `1` | Fix-agent re-invocations on failure |
