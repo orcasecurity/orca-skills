@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Static checks on the plugin's own metadata — the breakages unit tests can't see.
+"""Static checks on the marketplace's metadata — the breakages unit tests can't see.
 
 The unit suites exercise Python behaviour. Nothing in them reads
 `.claude-plugin/`, so the failures that only surface at install time have no
@@ -16,6 +16,13 @@ gate at all:
                   stops being discoverable, and a `name` that disagrees with its
                   directory resolves to a skill that isn't there.
 
+This repository is a marketplace carrying more than one plugin, and the two
+manifests no longer sit side by side: `marketplace.json` is at the repository
+root, each `plugin.json` under the plugin it describes. So the checks run over
+*every* entry in the marketplace, resolving each one's `source` to find its
+manifest, its skills and its commands. A drift in the plugin next door is still
+a broken install.
+
 Every check is a pure function over already-parsed data, returning a list of
 human-readable problems, so each one is unit-testable without a filesystem
 (tools/tests/test_check_manifests.py). Only `main` touches disk.
@@ -27,16 +34,14 @@ import os
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+PLUGIN_ROOT = Path(__file__).resolve().parent.parent   # plugins/security-engineer
+MARKETPLACE_ROOT = PLUGIN_ROOT.parents[1]              # the repository root
 
 # Shell entry points that are invoked as commands rather than sourced or passed
-# to an interpreter, so the executable bit is load-bearing.
+# to an interpreter, so the executable bit is load-bearing. Relative to
+# PLUGIN_ROOT — no other plugin in this marketplace ships an executable.
 EXECUTABLES = [
     "bin/security-engineer",
-    "install.sh",
-    "devloop/run.sh",
-    "devloop/reset.sh",
-    "devloop/config.sh",
 ]
 
 
@@ -95,24 +100,54 @@ def check_manifest_agreement(plugin: dict, marketplace: dict) -> list:
     return problems
 
 
-def check_skill_frontmatter(skills: list) -> list:
-    """Each (directory_name, SKILL.md frontmatter) pair must be discoverable.
+def check_entry_sources(entries: list) -> list:
+    """Each marketplace entry needs a name and a source that stays in the tree.
 
-    A skill's directory name is its invocable name, so a `name:` that disagrees
-    with the directory points at a skill that cannot be resolved.
+    `source` is the path to the plugin root relative to the marketplace root, so
+    an absolute path or one climbing out with `..` resolves somewhere the
+    installer will not follow.
     """
     problems = []
-    for dir_name, fields in skills:
+    for index, entry in enumerate(entries):
+        entry = entry or {}
+        name = entry.get("name") or f"plugins[{index}]"
+        source = entry.get("source")
+        if not source:
+            problems.append(f"marketplace.json: '{name}' has no 'source'")
+            continue
+        if not isinstance(source, str):
+            # A non-string source is one of the remote forms (github, git-subdir,
+            # npm...). Nothing on disk to check, and not this repo's shape.
+            continue
+        if source.startswith("/") or ".." in Path(source).parts:
+            problems.append(
+                f"marketplace.json: '{name}' source {source!r} must be a "
+                f"relative path inside the marketplace"
+            )
+    return problems
+
+
+def check_skill_frontmatter(skills: list) -> list:
+    """Each (skill_directory, SKILL.md frontmatter) pair must be discoverable.
+
+    A skill's directory name is its invocable name, so a `name:` that disagrees
+    with the directory points at a skill that cannot be resolved. The directory
+    is passed as a path so the message locates the file in a repository holding
+    several plugins; only its last segment is the skill name.
+    """
+    problems = []
+    for skill_dir, fields in skills:
+        dir_name = Path(skill_dir).name
         if not fields:
-            problems.append(f"skills/{dir_name}/SKILL.md: no frontmatter block")
+            problems.append(f"{skill_dir}/SKILL.md: no frontmatter block")
             continue
         for key in ("name", "description"):
             if not fields.get(key):
-                problems.append(f"skills/{dir_name}/SKILL.md: missing '{key}:'")
+                problems.append(f"{skill_dir}/SKILL.md: missing '{key}:'")
         declared = fields.get("name")
         if declared and declared != dir_name:
             problems.append(
-                f"skills/{dir_name}/SKILL.md: name is '{declared}' but the "
+                f"{skill_dir}/SKILL.md: name is '{declared}' but the "
                 f"directory is '{dir_name}' — the directory name is the skill name"
             )
     return problems
@@ -138,55 +173,93 @@ def check_executable_bits(modes: list) -> list:
     ]
 
 
+def _rel(path: Path) -> str:
+    """Repository-relative display path, or the absolute one if it escapes."""
+    try:
+        return str(path.relative_to(MARKETPLACE_ROOT))
+    except ValueError:
+        return str(path)
+
+
 def _read_json(path: Path) -> tuple:
     """(parsed, problems). A parse failure is reported, never raised."""
     try:
         return json.loads(path.read_text()), []
     except FileNotFoundError:
-        return {}, [f"{path.relative_to(REPO_ROOT)}: missing"]
+        return {}, [f"{_rel(path)}: missing"]
     except json.JSONDecodeError as e:
-        return {}, [f"{path.relative_to(REPO_ROOT)}: invalid JSON — {e}"]
+        return {}, [f"{_rel(path)}: invalid JSON — {e}"]
+
+
+def _collect_plugin(root: Path) -> tuple:
+    """(skills, commands, problems) for one plugin directory.
+
+    Skills are (repository-relative directory, frontmatter) pairs; commands the
+    same shape for their files. A plugin with no skills at all is reported —
+    that is a plugin the marketplace lists and Claude Code has nothing to load
+    from.
+    """
+    problems = []
+
+    skills_dir = root / "skills"
+    skills = [
+        (_rel(d), parse_frontmatter((d / "SKILL.md").read_text()))
+        for d in sorted(skills_dir.iterdir())
+        if d.is_dir() and (d / "SKILL.md").exists()
+    ] if skills_dir.is_dir() else []
+    if not skills:
+        problems.append(f"{_rel(skills_dir)}: no SKILL.md found — this plugin exposes no skills")
+
+    commands = [
+        (_rel(p), parse_frontmatter(p.read_text()))
+        for p in sorted((root / "commands").glob("*.md"))
+    ]
+    return skills, commands, problems
 
 
 def main() -> int:
     problems = []
 
-    plugin, errs = _read_json(REPO_ROOT / ".claude-plugin" / "plugin.json")
+    market_path = MARKETPLACE_ROOT / ".claude-plugin" / "marketplace.json"
+    marketplace, errs = _read_json(market_path)
     problems += errs
-    marketplace, errs = _read_json(REPO_ROOT / ".claude-plugin" / "marketplace.json")
-    problems += errs
-    if not problems:
+    entries = marketplace.get("plugins") or []
+    problems += check_entry_sources(entries)
+
+    # Every entry the marketplace lists, not just the one this file ships with:
+    # a drift in the plugin next door breaks its install just as thoroughly.
+    total_skills = total_commands = 0
+    for entry in entries:
+        source = (entry or {}).get("source")
+        if not isinstance(source, str) or source.startswith("/") or ".." in Path(source).parts:
+            continue  # already reported, or a remote source with nothing on disk
+        root = (MARKETPLACE_ROOT / source).resolve()
+        plugin, errs = _read_json(root / ".claude-plugin" / "plugin.json")
+        problems += errs
+        if errs:
+            continue
         problems += check_manifest_agreement(plugin, marketplace)
+
+        skills, commands, errs = _collect_plugin(root)
+        problems += errs
+        problems += check_skill_frontmatter(skills)
+        problems += check_command_frontmatter(commands)
+        total_skills += len(skills)
+        total_commands += len(commands)
 
     # Every other tracked JSON file only has to parse. Fixtures included: a
     # truncated fixture fails the suite that reads it with a confusing error.
-    for path in sorted(REPO_ROOT.glob("**/*.json")):
+    for path in sorted(MARKETPLACE_ROOT.glob("**/*.json")):
         if ".claude-plugin" in path.parts or "__pycache__" in path.parts:
             continue
         if any(part in (".git", "runs", ".claude", "node_modules") for part in path.parts):
             continue
         problems += _read_json(path)[1]
 
-    skills_dir = REPO_ROOT / "skills"
-    skills = [
-        (d.name, parse_frontmatter((d / "SKILL.md").read_text()))
-        for d in sorted(skills_dir.iterdir())
-        if d.is_dir() and (d / "SKILL.md").exists()
-    ]
-    if not skills:
-        problems.append("skills/: no SKILL.md found — the plugin exposes no skills")
-    problems += check_skill_frontmatter(skills)
-
-    commands = [
-        (str(p.relative_to(REPO_ROOT)), parse_frontmatter(p.read_text()))
-        for p in sorted((REPO_ROOT / "commands").glob("*.md"))
-    ]
-    problems += check_command_frontmatter(commands)
-
     problems += check_executable_bits([
-        (rel, os.access(REPO_ROOT / rel, os.X_OK))
+        (_rel(PLUGIN_ROOT / rel), os.access(PLUGIN_ROOT / rel, os.X_OK))
         for rel in EXECUTABLES
-        if (REPO_ROOT / rel).exists()
+        if (PLUGIN_ROOT / rel).exists()
     ])
 
     if problems:
@@ -194,8 +267,8 @@ def main() -> int:
         for p in problems:
             print(f"  - {p}")
         return 1
-    print(f"Plugin metadata OK — v{plugin.get('version')}, "
-          f"{len(skills)} skill(s), {len(commands)} command(s).")
+    print(f"Marketplace metadata OK — {len(entries)} plugin(s), "
+          f"{total_skills} skill(s), {total_commands} command(s).")
     return 0
 
 

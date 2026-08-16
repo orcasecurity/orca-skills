@@ -1,7 +1,7 @@
 ---
 name: run
-description: Remediate Orca Security alerts end to end — fix, validate, assess production impact, open a PR, notify. Use whenever someone asks to fix, remediate, patch, triage, or scan security alerts, vulnerabilities, or findings, whether they name a severity ("remediate all high vulnerabilities", "patch the critical ones"), a type ("fix the SAST issues", "clean up the hardcoded secrets", "bump the vulnerable dependencies", "fix the Dockerfile findings"), a CVE or advisory id ("fix CVE-2020-7471", "are we exposed to log4shell", "patch GHSA-2p49-hgcm-8545", "where is CVE-2021-44228 open"), a count ("just one", "max of 3"), an alert ID ("remediate alert-192901290", "fix orca-4060720"), or a repo ("fix everything in owner/repo", "scan all our repos"). Also covers dry runs and read-only risk reports. Covers CVE/SCA, SAST, IaC, and secret findings.
-argument-hint: "fix CVE-2020-7471 | remediate up to 3 high CVEs | what risks does this repo have? | patch the secrets in acme/api"
+description: Remediate Orca Security code-repository alerts end to end — change the code, validate, assess production impact, open a pull request, notify. Use whenever someone asks to fix, remediate, or patch findings in a git repository, whether they name a severity ("remediate all high vulnerabilities in this repo", "patch the critical ones"), a type ("fix the SAST issues", "clean up the hardcoded secrets", "bump the vulnerable dependencies", "fix the Dockerfile findings"), a CVE or advisory id to patch ("fix CVE-2020-7471", "patch GHSA-2p49-hgcm-8545", "which of our repos still needs the log4shell fix"), a count ("just one", "max of 3"), an alert ID ("remediate alert-192901290", "fix orca-4060720"), or a repo ("fix everything in owner/repo", "scan all our repos for fixable code risks"). Also covers dry runs and read-only risk reports over repositories. Covers CVE/SCA, SAST, IaC, and secret findings in source code. NOT for cloud asset posture — exposure of running cloud infrastructure to a CVE is orca-cve-blast-radius, and explaining a single cloud alert is orca-alert-triage.
+argument-hint: "fix CVE-2020-7471 | remediate up to 3 high CVEs | what fixable risks does this repo have? | patch the secrets in acme/api"
 allowed-tools: Bash
 ---
 
@@ -10,6 +10,13 @@ allowed-tools: Bash
 A Python orchestrator does the remediation. Your job is narrow: **turn the
 request into one command line, echo it, run it once, report what it printed.**
 Never fix an alert yourself, and never run the command more than once.
+
+**Scope: source code in git repositories.** This skill edits manifests and code
+and opens pull requests. It says nothing about running cloud infrastructure. If
+the question is which *cloud assets* are exposed to a CVE, that is
+`orca-cve-blast-radius`; if it is what a single cloud alert means and whether it
+matters, that is `orca-alert-triage`. Both ship in the `orca-skills` plugin from
+the same marketplace and read the Orca MCP server rather than this orchestrator.
 
 ## 0. Flags win over interpretation
 

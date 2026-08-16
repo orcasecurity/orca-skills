@@ -5,7 +5,7 @@ Multi-phase validation pipeline for security fixes.
 Phase 1: Python sanity checks — diff non-empty, size limits, no new secrets
 Phase 2: LLM validation — does the fix address the vulnerability?
 Phase 3: Local build/test — language-aware compile/lint
-Phase 4: Orca GitHub App check — poll the orca-security-us check on the PR
+Phase 4: Orca GitHub App check — poll the "Orca Security" checks on the PR
 Phase 5: GitHub CI gate — poll required PR checks
 
 Phases 1-3 run pre-PR; 4 and 5 run after the PR is opened. All three pre-PR
@@ -563,7 +563,7 @@ def _get_check_annotations(owner_repo: str, check_run_id: int) -> list[OrcaCheck
 
 def orca_check_gate(
     pr_url: str,
-    check_name: str = "orca-security-us",
+    check_name: str = "Orca Security",
     timeout_sec: int = 600,
     poll_interval: int = 15,
     on_not_found: str = "skip",

@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from check_manifests import (
     check_command_frontmatter,
+    check_entry_sources,
     check_executable_bits,
     check_manifest_agreement,
     check_skill_frontmatter,
@@ -108,6 +109,36 @@ class TestManifestAgreement(unittest.TestCase):
         self.assertIn("none", problems[0])
 
 
+class TestEntrySources(unittest.TestCase):
+    """A marketplace entry's source is where the installer goes looking."""
+
+    CASES = [
+        ("marketplace root", [{"name": "a", "source": "./"}], 0),
+        ("subdirectory", [{"name": "a", "source": "./plugins/thing"}], 0),
+        ("bare relative path", [{"name": "a", "source": "plugins/thing"}], 0),
+        ("no source", [{"name": "a"}], 1),
+        ("empty source", [{"name": "a", "source": ""}], 1),
+        ("absolute path", [{"name": "a", "source": "/etc/plugins"}], 1),
+        ("climbs out of the tree", [{"name": "a", "source": "../elsewhere"}], 1),
+        ("remote source object is not ours to check",
+         [{"name": "a", "source": {"source": "github", "repo": "o/r"}}], 0),
+        ("several entries, one broken",
+         [{"name": "a", "source": "./"}, {"name": "b"}], 1),
+        ("nothing listed", [], 0),
+    ]
+
+    def test_cases(self):
+        for desc, entries, expected in self.CASES:
+            with self.subTest(desc):
+                problems = check_entry_sources(entries)
+                self.assertEqual(len(problems), expected, f"{desc}: {problems}")
+
+    def test_unnamed_entry_is_located_by_index(self):
+        problems = check_entry_sources([{"source": "./"}, {}])
+        self.assertEqual(len(problems), 1)
+        self.assertIn("plugins[1]", problems[0])
+
+
 class TestSkillFrontmatter(unittest.TestCase):
     CASES = [
         ("complete", [("run", {"name": "run", "description": "d"})], 0),
@@ -120,6 +151,12 @@ class TestSkillFrontmatter(unittest.TestCase):
         ("several skills, one broken",
          [("run", {"name": "run", "description": "d"}),
           ("scan", {"name": "scan"})], 1),
+        ("path form: only the last segment is the skill name",
+         [("plugins/security-engineer/skills/run",
+           {"name": "run", "description": "d"})], 0),
+        ("path form: mismatch still caught",
+         [("plugins/security-engineer/skills/run",
+           {"name": "runner", "description": "d"})], 1),
         ("nothing to check", [], 0),
     ]
 
@@ -134,6 +171,11 @@ class TestSkillFrontmatter(unittest.TestCase):
             [("run", {"name": "runner", "description": "d"})])
         self.assertIn("runner", problems[0])
         self.assertIn("run", problems[0])
+
+    def test_message_locates_the_file_in_a_multi_plugin_repo(self):
+        problems = check_skill_frontmatter(
+            [("plugins/security-engineer/skills/run", {"name": "run"})])
+        self.assertIn("plugins/security-engineer/skills/run/SKILL.md", problems[0])
 
 
 class TestCommandFrontmatter(unittest.TestCase):
@@ -154,9 +196,11 @@ class TestCommandFrontmatter(unittest.TestCase):
 
 class TestExecutableBits(unittest.TestCase):
     CASES = [
-        ("all executable", [("bin/security-engineer", True)], 0),
-        ("one stripped", [("bin/security-engineer", False)], 1),
-        ("mixed", [("install.sh", True), ("devloop/run.sh", False)], 1),
+        ("all executable",
+         [("plugins/security-engineer/bin/security-engineer", True)], 0),
+        ("one stripped",
+         [("plugins/security-engineer/bin/security-engineer", False)], 1),
+        ("mixed", [("bin/one", True), ("bin/two", False)], 1),
         ("nothing declared", [], 0),
     ]
 
@@ -167,8 +211,10 @@ class TestExecutableBits(unittest.TestCase):
                 self.assertEqual(len(problems), expected, f"{desc}: {problems}")
 
     def test_message_gives_the_fix(self):
-        problems = check_executable_bits([("install.sh", False)])
-        self.assertIn("chmod +x install.sh", problems[0])
+        problems = check_executable_bits(
+            [("plugins/security-engineer/bin/security-engineer", False)])
+        self.assertIn(
+            "chmod +x plugins/security-engineer/bin/security-engineer", problems[0])
 
 
 class TestAgainstThisRepo(unittest.TestCase):
