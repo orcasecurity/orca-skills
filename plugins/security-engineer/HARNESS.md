@@ -242,7 +242,7 @@ Secrets stay in the environment. Everything else is a YAML file pointed at by
 | Section | Key | Default | Meaning |
 |---|---|---|---|
 | `orca_check` | `enabled` | `true` | Run gate 4 at all |
-| | `check_name` | `orca-security-us` | Substring matched against check-run names |
+| | `check_name` | `Orca Security` | Substring matched against check-run names |
 | | `timeout_sec` / `poll_interval_sec` | `600` / `15` | How long, how often |
 | | `max_retries` | `1` | Fix-agent re-invocations with annotation feedback |
 | | `on_failure` | `retry` | `retry` \| `fail` \| `skip` once retries are spent |
@@ -254,10 +254,12 @@ Secrets stay in the environment. Everything else is a YAML file pointed at by
 | | `osv_url` / `deps_dev_url` | upstream | Override endpoints |
 | top level | `max_parallel_fixes` / `max_parallel_repos` | `4` / `3` | Concurrency caps |
 
-Note the check-name default: the Orca App posts checks named
-`Orca Security - SAST`, `… - Vulnerabilities`, `… - IaC`, `… - Secrets`. The
-default matches none of them as a substring, which is why `devloop/orca-check.yaml`
-overrides it — see below.
+Note the check-name default. The Orca App posts one check per scanner —
+`Orca Security - SAST`, `… - Vulnerabilities`, `… - IaC`, `… - Secrets` — so the
+shared prefix is what matches them all. Getting this value wrong is quiet rather
+than loud: nothing matches, the gate takes the `on_not_found` path, and the
+strongest gate here does nothing while the run still reports success with
+`needs-review`. `config.example.yaml` is a commented starting point.
 
 ---
 
@@ -278,9 +280,10 @@ Notification backends are the same shape: implement `send()`, register in
 
 ## Proving the harness works
 
-Two layers, because they catch different things.
+Two automated layers, and one that stays manual.
 
-**Unit tests** — 379 across seven suites, table-driven per `CLAUDE.md`, no token
+**Unit tests** — 370 across five suites, table-driven per the repository's
+`CLAUDE.md`, no token
 and no network:
 
 ```bash
@@ -292,35 +295,34 @@ range logic, manifest parsing for every supported ecosystem, gate behaviour on
 mocked diffs, and the dry-run guarantees.
 
 **Static checks** — the linters, plus the plugin-metadata checks that no Python
-suite can see (version drift between `plugin.json` and `marketplace.json`, a
-lost executable bit, missing skill frontmatter):
+suite can see (version drift between `plugin.json` and the marketplace entry
+describing it, a lost executable bit, missing skill frontmatter):
 
 ```bash
 make lint
 ```
 
-Both run on every pull request via `.github/workflows/ci.yml`, `make test`
-across Python 3.10–3.14. CI calls the same Make targets, so it cannot drift from
-what you run locally.
+Both run on every pull request via `.github/workflows/ci.yml` at the repository
+root, `make test` across Python 3.10–3.14. CI calls the same Make targets, so it
+cannot drift from what you run locally.
 
-**The dev loop** — the parts that only exist in a live run: worktree lifecycle,
-whether the diff the gates judge is the diff that gets committed, whether gate 4
-fires at all, whether annotation feedback reaches the agent on retry.
+**A live run, by hand.** The parts of this harness that only exist in a real run
+— worktree lifecycle, whether the diff the gates judge is the diff that gets
+committed, whether gate 4 fires at all, whether annotation feedback reaches the
+agent on retry — cannot be exercised without an Orca token and a repository to
+open pull requests against. There is no automated substitute here. Before
+changing anything in the gate path, run it against a repository you own:
 
 ```bash
-make fast                      # test → install → reset → fix one CVE → report
-make loop ARGS="--dry-run cve" # plan only, no writes
+export ORCA_API_TOKEN=…
+security-engineer --scan                  # what is open, read-only
+security-engineer --dry-run cve           # plan only, no writes
+security-engineer cve --max 1             # one real fix, one real PR
 ```
 
-`devloop/observe.py` joins the run's NDJSON event log with live GitHub state and
-prints one verdict per alert plus the annotations behind any failure, with
-meaningful exit codes (`0` all good, `1` failure or still running, `2` nothing
-exercised — reset the sandbox). It imports nothing from `skills/`, so it keeps
-working while the pipeline is being rewritten underneath it.
-
-Full runbook, sandbox requirements and failure-signature table:
-[`devloop/README.md`](devloop/README.md). Nothing in `devloop/` ships with the
-plugin.
+`security-engineer-run.json` beside the orchestrator is a newline-delimited JSON
+log of every state transition in the run, which is where to look when the
+console summary is not enough.
 
 ---
 
