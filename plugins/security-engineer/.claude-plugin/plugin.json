@@ -1,0 +1,10 @@
+{
+  "name": "security-engineer",
+  "description": "Autonomous security agent that remediates Orca alerts with validation, impact analysis, and notifications",
+  "version": "1.0.0",
+  "author": {
+    "name": "Orca Security"
+  },
+  "repository": "https://github.com/igorlopes-orca/security-engineer",
+  "license": "MIT"
+}
