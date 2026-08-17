@@ -6,6 +6,9 @@
 .AppleDouble
 .LSOverride
 
+# Agent instructions — local, not shared
+CLAUDE.md
+
 # IDE
 .vscode/
 .idea/

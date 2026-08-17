@@ -1152,8 +1152,8 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guid
 3. Update this README — the overview table and a `<details>` block
 4. Submit a pull request
 
-Changes to the `security-engineer` plugin follow
-[a different checklist](CONTRIBUTING.md#the-security-engineer-plugin).
+Changes to the `security-engineer` plugin are Python rather than Markdown — see
+[its README](plugins/security-engineer/README.md#developing).
 
 ## Support
 

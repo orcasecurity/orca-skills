@@ -229,8 +229,9 @@ make install                           # install this working tree as the plugin
 ```
 
 Unit tests cover argument parsing, version ordering, manifest parsing and gate
-behaviour on mocked diffs. New functions and behaviours need table-driven tests —
-a `CASES` list looped with `self.subTest`, per [`CLAUDE.md`](../../CLAUDE.md).
+behaviour on mocked diffs. New functions and behaviours need table-driven tests:
+define a `CASES` list of `(description, input, expected)` tuples and loop with
+`self.subTest(description)`, as the existing suites do.
 
 What the unit suites cannot reach is the part this plugin exists for: worktree
 lifecycle, whether the diff the gates judge is the diff that gets committed,

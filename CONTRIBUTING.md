@@ -4,29 +4,12 @@ We welcome contributions from the community. This document explains the process 
 
 ## Table of Contents
 
-- [What lives where](#what-lives-where)
 - [Reporting Bugs](#reporting-bugs)
 - [Feature Requests](#feature-requests)
 - [Development Setup](#development-setup)
 - [Pull Request Process](#pull-request-process)
 - [Style Guide](#style-guide)
 - [Code of Conduct](#code-of-conduct)
-
----
-
-## What lives where
-
-This repository is a marketplace carrying two plugins, and they are contributed
-to differently.
-
-| Path | Plugin | Contributing to it means |
-|---|---|---|
-| `skills/orca-*/SKILL.md` | `orca-skills` | Writing Markdown. No build step, no runtime, no tests |
-| `plugins/security-engineer/` | `security-engineer` | Writing Python, with unit tests and CI |
-
-`.claude-plugin/marketplace.json` at the root describes both. Each plugin also
-carries its own `plugin.json`, and the two must agree — `make lint` in the plugin
-directory checks this for every entry.
 
 ---
 
@@ -66,44 +49,9 @@ git clone https://github.com/<your-username>/orca-skills.git
 cd orca-skills
 ```
 
-Skills in the `orca-skills` plugin are plain Markdown files under
-`skills/<skill-name>/SKILL.md` — no build step or runtime is required to author
-or modify them. Install them via the Claude Code plugin marketplace (see
-[README](README.md)) to try them locally.
+Skills are plain Markdown files under `skills/<skill-name>/SKILL.md` — no build step or runtime is required to author or modify them. Install them via the Claude Code plugin marketplace (see [README](README.md)) to try them locally.
 
 **Note:** `.mcp.json` is gitignored. Never commit API tokens or credentials.
-
-### The `security-engineer` plugin
-
-`plugins/security-engineer/` is Python, and every target runs from that
-directory:
-
-```bash
-cd plugins/security-engineer
-pip install ruff==0.16.1 shellcheck-py==0.11.0.1 pyyaml==6.0.3   # what CI pins
-make test     # 370 unit tests — no API token, no network
-make lint     # ruff, shellcheck, marketplace metadata
-make install  # install your working tree as the plugin, to try the skill
-```
-
-Three things to know before you send a PR here:
-
-- **Every new function or behaviour needs a unit test**, table-driven: a `CASES`
-  list of `(description, input, expected)` looped with `self.subTest`. See
-  [`CLAUDE.md`](CLAUDE.md).
-- **`make install` after every edit you want the skill to see.** `/security-engineer:run`
-  executes the copy Claude Code made at install time, and nothing refreshes it on
-  its own — `claude plugin update` short-circuits while the version in
-  `plugin.json` is unchanged, and installing over an existing install is a no-op.
-  `make install` uninstalls first, which is what defeats that.
-- **CI runs only on changes under `plugins/security-engineer/**`**, across Python
-  3.10–3.14. It invokes the same `make` targets you do, so a green pull request
-  is predictable from your terminal.
-
-The live pipeline — worktree lifecycle, what the gates actually see, whether the
-Orca check gate fires — has no automated coverage; it needs a token and a
-repository to open pull requests against. Exercise it by hand against a repo you
-own before changing anything in the gate path, and say in the PR that you did.
 
 ---
 
@@ -116,7 +64,7 @@ own before changing anything in the gate path, and say in the PR that you did.
    git checkout -b docs/update-readme
    ```
 
-2. **Make your changes.** Edit or add `SKILL.md` files under `skills/<skill-name>/`, or work inside `plugins/security-engineer/`.
+2. **Make your changes.** Edit or add `SKILL.md` files under `skills/<skill-name>/`.
 
 3. **Keep PRs focused.** One bug fix or one new skill per PR. Do not bundle unrelated changes.
 
@@ -137,7 +85,7 @@ own before changing anything in the gate path, and say in the PR that you did.
 
 ## Style Guide
 
-**Skill files (`SKILL.md`), in either plugin:**
+**Skill files (`SKILL.md`):**
 - The `name` field must be kebab-case and match the directory name.
 - The `description` field is used for AI trigger matching — write it as a complete sentence and include example phrases users might say.
 - Instructions should be written in clear, imperative language.

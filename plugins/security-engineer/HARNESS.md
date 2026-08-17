@@ -282,9 +282,7 @@ Notification backends are the same shape: implement `send()`, register in
 
 Two automated layers, and one that stays manual.
 
-**Unit tests** — 370 across five suites, table-driven per the repository's
-`CLAUDE.md`, no token
-and no network:
+**Unit tests** — 370 across five suites, table-driven, no token and no network:
 
 ```bash
 make test

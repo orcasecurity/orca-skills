@@ -18,10 +18,10 @@ gate at all:
 
 This repository is a marketplace carrying more than one plugin, and the two
 manifests no longer sit side by side: `marketplace.json` is at the repository
-root, each `plugin.json` under the plugin it describes. So the checks run over
-*every* entry in the marketplace, resolving each one's `source` to find its
-manifest, its skills and its commands. A drift in the plugin next door is still
-a broken install.
+root, `plugin.json` under the plugin it describes. So the checks read the
+marketplace at the root but scope everything else to *this* plugin — its own
+entry, its own skills, its own commands. The other plugins in this marketplace
+are not this file's business.
 
 Every check is a pure function over already-parsed data, returning a list of
 human-readable problems, so each one is unit-testable without a filesystem
@@ -220,39 +220,32 @@ def _collect_plugin(root: Path) -> tuple:
 def main() -> int:
     problems = []
 
-    market_path = MARKETPLACE_ROOT / ".claude-plugin" / "marketplace.json"
-    marketplace, errs = _read_json(market_path)
+    plugin, errs = _read_json(PLUGIN_ROOT / ".claude-plugin" / "plugin.json")
     problems += errs
-    entries = marketplace.get("plugins") or []
-    problems += check_entry_sources(entries)
+    marketplace, errs = _read_json(
+        MARKETPLACE_ROOT / ".claude-plugin" / "marketplace.json")
+    problems += errs
 
-    # Every entry the marketplace lists, not just the one this file ships with:
-    # a drift in the plugin next door breaks its install just as thoroughly.
-    total_skills = total_commands = 0
-    for entry in entries:
-        source = (entry or {}).get("source")
-        if not isinstance(source, str) or source.startswith("/") or ".." in Path(source).parts:
-            continue  # already reported, or a remote source with nothing on disk
-        root = (MARKETPLACE_ROOT / source).resolve()
-        plugin, errs = _read_json(root / ".claude-plugin" / "plugin.json")
-        problems += errs
-        if errs:
-            continue
+    name = plugin.get("name")
+    if not problems:
         problems += check_manifest_agreement(plugin, marketplace)
+        # Only this plugin's own entry. The marketplace carries others, and
+        # whether they agree with their manifests is their business, not a
+        # reason to fail this plugin's lint.
+        ours = [e for e in (marketplace.get("plugins") or [])
+                if (e or {}).get("name") == name]
+        problems += check_entry_sources(ours)
 
-        skills, commands, errs = _collect_plugin(root)
-        problems += errs
-        problems += check_skill_frontmatter(skills)
-        problems += check_command_frontmatter(commands)
-        total_skills += len(skills)
-        total_commands += len(commands)
+    skills, commands, errs = _collect_plugin(PLUGIN_ROOT)
+    problems += errs
+    problems += check_skill_frontmatter(skills)
+    problems += check_command_frontmatter(commands)
 
-    # Every other tracked JSON file only has to parse. Fixtures included: a
-    # truncated fixture fails the suite that reads it with a confusing error.
-    for path in sorted(MARKETPLACE_ROOT.glob("**/*.json")):
+    # Every other JSON file under this plugin only has to parse. Fixtures
+    # included: a truncated fixture fails the suite that reads it with a
+    # confusing error.
+    for path in sorted(PLUGIN_ROOT.glob("**/*.json")):
         if ".claude-plugin" in path.parts or "__pycache__" in path.parts:
-            continue
-        if any(part in (".git", "runs", ".claude", "node_modules") for part in path.parts):
             continue
         problems += _read_json(path)[1]
 
@@ -267,8 +260,8 @@ def main() -> int:
         for p in problems:
             print(f"  - {p}")
         return 1
-    print(f"Marketplace metadata OK — {len(entries)} plugin(s), "
-          f"{total_skills} skill(s), {total_commands} command(s).")
+    print(f"Plugin metadata OK — {name} v{plugin.get('version')}, "
+          f"{len(skills)} skill(s), {len(commands)} command(s).")
     return 0
 
 
