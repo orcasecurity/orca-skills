@@ -222,19 +222,27 @@ def main() -> int:
 
     plugin, errs = _read_json(PLUGIN_ROOT / ".claude-plugin" / "plugin.json")
     problems += errs
-    marketplace, errs = _read_json(
-        MARKETPLACE_ROOT / ".claude-plugin" / "marketplace.json")
-    problems += errs
-
     name = plugin.get("name")
-    if not problems:
-        problems += check_manifest_agreement(plugin, marketplace)
-        # Only this plugin's own entry. The marketplace carries others, and
-        # whether they agree with their manifests is their business, not a
-        # reason to fail this plugin's lint.
-        ours = [e for e in (marketplace.get("plugins") or [])
-                if (e or {}).get("name") == name]
-        problems += check_entry_sources(ours)
+
+    # The marketplace manifest sits two levels up — but only while this plugin
+    # is still inside the repository that publishes it. Once Claude Code has
+    # installed the plugin, the directory above it is the plugin cache, and
+    # there is no marketplace to agree with. Absent means "not applicable"
+    # here, not "broken": the checks below still cover everything the
+    # installed copy actually consists of.
+    market_path = MARKETPLACE_ROOT / ".claude-plugin" / "marketplace.json"
+    in_marketplace = market_path.is_file()
+    if in_marketplace and not problems:
+        marketplace, errs = _read_json(market_path)
+        problems += errs
+        if not errs:
+            problems += check_manifest_agreement(plugin, marketplace)
+            # Only this plugin's own entry. The marketplace carries others, and
+            # whether they agree with their manifests is their business, not a
+            # reason to fail this plugin's lint.
+            ours = [e for e in (marketplace.get("plugins") or [])
+                    if (e or {}).get("name") == name]
+            problems += check_entry_sources(ours)
 
     skills, commands, errs = _collect_plugin(PLUGIN_ROOT)
     problems += errs
@@ -260,8 +268,9 @@ def main() -> int:
         for p in problems:
             print(f"  - {p}")
         return 1
+    scope = "" if in_marketplace else " (installed copy — no marketplace to check against)"
     print(f"Plugin metadata OK — {name} v{plugin.get('version')}, "
-          f"{len(skills)} skill(s), {len(commands)} command(s).")
+          f"{len(skills)} skill(s), {len(commands)} command(s){scope}.")
     return 0
 
 

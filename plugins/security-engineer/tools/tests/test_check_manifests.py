@@ -9,8 +9,10 @@ only assertion here that touches disk.
 Run: python3 tools/tests/test_check_manifests.py
 """
 import sys
+import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -222,6 +224,20 @@ class TestAgainstThisRepo(unittest.TestCase):
 
     def test_main_exits_clean(self):
         self.assertEqual(main(), 0, "check_manifests.py reported problems")
+
+    def test_main_exits_clean_when_installed(self):
+        """No marketplace above the plugin — the shape after `plugin install`.
+
+        Claude Code copies the plugin directory into its cache, where the
+        parent is not the publishing repository and there is no marketplace
+        manifest to agree with. A missing one used to be reported as a problem,
+        so `make test` failed in every installed copy while passing in the repo
+        it shipped from.
+        """
+        import check_manifests
+        with tempfile.TemporaryDirectory() as empty:
+            with mock.patch.object(check_manifests, "MARKETPLACE_ROOT", Path(empty)):
+                self.assertEqual(main(), 0, "a missing marketplace must not fail the checks")
 
 
 if __name__ == "__main__":

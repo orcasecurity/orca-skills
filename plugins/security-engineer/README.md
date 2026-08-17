@@ -246,6 +246,44 @@ security-engineer --dry-run cve        # plan only, no writes
 security-engineer cve --max 1          # one real fix, one real PR
 ```
 
+### Testing an install from a branch
+
+`make install` proves the code runs; it does not prove the *published* plugin
+does. The install path has its own failure modes — a file the marketplace never
+copies, a lost executable bit, a manifest that resolves differently once the
+plugin is no longer inside this repository. Those only appear in a real install,
+and you do not have to merge or publish to get one: a marketplace source takes a
+git ref.
+
+```bash
+# Install exactly what a branch would publish, straight from GitHub
+claude plugin marketplace add "<owner>/orca-skills@<branch>"
+claude plugin install security-engineer@orcasecurity
+
+C="$HOME/.claude/plugins/cache/orcasecurity/security-engineer/1.0.0"
+
+ls -l "$C/bin/security-engineer"          # 1. shipped, and still executable
+"$C/bin/security-engineer" --scan         # 2. the CLI resolves the orchestrator
+(cd "$C" && make test)                    # 3. the shipped copy passes its own
+                                          #    suite — the payload is complete
+python3 "$C/skills/run/run_agent.py" \
+        resolve-version pypi pillow 8.3.1 # 4. the live OSV/deps.dev path works
+```
+
+Step 3 is the one worth keeping: running the suite from the install cache is how
+you find out that the plugin depends on something the marketplace does not copy.
+It is what caught `tools/check_manifests.py` looking for a marketplace manifest
+that exists only in this repository.
+
+Then restart Claude Code and confirm `/security-engineer:script` and
+`/security-engineer:run` resolve, and that `security-engineer` is on `PATH` — the
+plugin `bin/` directory is only added to `PATH` inside a session.
+
+```bash
+claude plugin uninstall security-engineer@orcasecurity   # afterwards
+claude plugin marketplace remove orcasecurity
+```
+
 ### What CI checks
 
 [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) runs on every pull
