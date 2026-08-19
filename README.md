@@ -42,6 +42,7 @@
 | [`orca-investigate`](#orca-investigate) | "What happened, who did it, and how far did they get?" |
 | [`orca-cloud-cost-optimizer`](#orca-cloud-cost-optimizer) | "Where are we overspending and what should we fix first?" |
 | [`orca-custom-framework`](#orca-custom-framework) | "How do I create a custom compliance framework tailored to my needs?" |
+| [`orca-inactive-identities-cleanup`](#orca-inactive-identities-cleanup) | "Which of our identities are dead weight, and how do we safely disable or delete them?" |
 | [`orca-supply-chain-exposure`](skills/orca-supply-chain-exposure/) | "From this list of suspect packages, which are we actually running and where?" |
 | [`orca-cve-blast-radius`](skills/orca-cve-blast-radius/) | "This CVE just dropped — which assets are actually at risk?" |
 | [`orca-account-health`](skills/orca-account-health/) | "Is every account connected, synced, and fully scanned?" |
@@ -1045,6 +1046,79 @@ cluster shows connected in Orca but no inventory data is showing up
 
 </details>
 
+
+<details>
+<summary><strong><a id="orca-inactive-identities-cleanup"></a>orca-inactive-identities-cleanup</strong></summary>
+
+**"Which of our identities are dead weight, and how do we safely disable or delete them?"**
+
+Sweeps an account or business unit for inactive identities (users, groups, and non-human identities) across every cloud provider Orca supports: AWS, Azure (incl. Entra ID), GCP (incl. Google Workspace), Alibaba Cloud, OCI, and Tencent Cloud. Ranks findings by identity risk score and drives cleanup through a non-destructive path (disable) or a destructive path (delete) that always requires explicit confirmation.
+
+**Features:**
+- Asks for the inactivity time frame if not given (90 days is Orca's built-in convention; 30/60/180 or custom supported)
+- Cross-cloud coverage: users, groups, and NHIs for all six supported providers
+- Anchored on Orca's pre-computed activity verdict (last-active timestamps), with CDR corroboration
+- Risk-first ranking: dormant admins, exposed credentials, and crown-jewel reach float to the top
+- Disable-first flow: reversible deactivation now, delete after a grace period
+- Explicit confirmation gate before any delete, with blast-radius preview (what still references the identity)
+- Automatic exclusions: break-glass accounts, identities too new to judge, possibly-human edge cases
+- Ready-to-run remediation artifacts (CLI/Terraform) with deletion prerequisites ordered correctly
+- Mandatory cleanup summary: found, disabled, deleted, proposed, skipped, and an estimate of alerts that will close
+
+**Usage:**
+```bash
+# Sweep an account or business unit
+/orca-inactive-identities-cleanup 123456789012
+/orca-inactive-identities-cleanup "Production"
+
+# Custom time frame, scope, or action
+/orca-inactive-identities-cleanup 123456789012 --inactive 60d
+/orca-inactive-identities-cleanup 123456789012 --only nhis
+/orca-inactive-identities-cleanup 123456789012 --action disable
+
+# Or use natural language
+clean up inactive identities in acme-production
+which users haven't been active in the last 60 days?
+disable the dormant service accounts in the Production BU
+```
+
+**Drill-down keywords** (type after the sweep):
+```
+detail <identity>   # Full evidence for one identity
+disable <ids|all>   # Generate disable artifacts
+delete <ids>        # Delete flow (explicit confirmation required)
+window <Nd>         # Re-run with a different time frame
+only <bucket>       # users | groups | nhis
+cloud <provider>    # aws | azure | gcp | alicloud | oci | tencent
+```
+
+**Example output:**
+```
+═══════════════════════════════════════════════════════════════════
+INACTIVE IDENTITY CLEANUP — acme-production
+Window: 60 days | AWS + Azure + GCP
+═══════════════════════════════════════════════════════════════════
+
+62 identities inactive for 60+ days: 41 users, 6 groups, 15 NHIs.
+9 carry high or critical risk.
+
+TOP RISK (highest first):
+  #  Identity              Type      Provider  Last active  Risk      Action
+  1  legacy-admin          IAM user  AWS       142d ago     Critical  Disable now
+  2  svc-deploy-old        SP        Azure     never        High      Disable now
+  3  ci-runner-2019        Role      AWS       201d ago     High      Disable now
+
+QUICK WINS: 12 identities with zero privileges and zero activity.
+
+CLEANUP SUMMARY  (window: 60 days)
+  Found:     62 | Disabled: 0 | Deleted: 0 | Proposed: 55 | Skipped: 7
+  Alerts:    ~24 open alerts on these identities close after the next scan
+═══════════════════════════════════════════════════════════════════
+```
+
+[Full Documentation →](skills/orca-inactive-identities-cleanup/)
+
+</details>
 
 ## Contributing
 
