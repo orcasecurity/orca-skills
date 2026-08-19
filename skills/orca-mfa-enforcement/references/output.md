@@ -11,10 +11,17 @@ Templates and required shapes for what the skill reports. Write for a **cloud ow
 ## Standard run
 
 1. **Headline:** counts and the exposure. *"41 users in acme-production can sign in without MFA: 28 AWS, 9 Azure, 4 Alibaba — including 2 root accounts and 6 admins. 11 carry high or critical risk."*
-2. **Ranked table**, highest risk first: **# | User | Provider | Privilege | Last active | Risk | Proposed action**.
+2. **Ranked table**, highest risk first. These columns, in this order, every time:
+
+   **# | Identity | Account | Provider | Privilege | Last sign-in | Risk | Proposed action**
+
+   - **Findings are always a table, never a prose list or bullets** — one finding is a one-row table. A reader has to be able to scan it, sort it, and hand rows to someone else.
+   - **Identity must be a unique identifier, never a bare display name.** A row carrying only a first name is not actionable and is a defect. Use the **`Arn`** on AWS (`arn:aws:iam::123456789012:user/alice`, and `…:root` for the root account) — IAM users carry no email and a username is unique only inside its account. Everywhere else use the **email or UPN**, which `AzureUser`, `GcpUser`, `AliCloudUser`, `OciUser`, and `TencentCloudUser` all carry.
+   - **Account is its own column** even in a single-account sweep: names collide across accounts, and every proposed action has to be executed somewhere specific.
+   - **Last sign-in** carries the console sign-in where the provider exposes one; where activity is unreadable or is not sign-in-specific, write "not observable" rather than a timestamp that means something else.
 3. **Root & break-glass (own section):** roots without MFA (or without hardware MFA) with their guide steps; break-glass accounts flagged for review — never in the bulk plan.
 4. **Quick wins (recommended starting point):** the safe, high-impact subset (e.g. "these 5 console passwords were never used — remove them today, nobody notices"; "these 6 admins are active weekly; notify today, enforce Friday").
-5. **Routed elsewhere:** API-only users → key hygiene, federated → IdP, inactive → the cleanup flow, no-signal slices (e.g. "GCP: Workspace integration off — no MFA visibility").
+5. **Routed elsewhere — one line, counts only.** State what was set aside and why it isn't an MFA gap, and stop there: *"14 users have no console access and 4 are dormant; neither is an MFA gap. GCP: Workspace integration off, no MFA visibility."* **Do not recommend fixes for any of it.** Key rotation, dormant-account cleanup, and IdP work are other skills' output; naming a hand-off skill once is the most this section ever does. The report is about MFA and nothing else — a reader should not come away with a to-do list this skill can't stand behind.
 6. **Bottom line:** the single riskiest unprotected user + what full coverage closes.
 7. **Coverage note (always):** data is as of the last completed scan, and cloud-log corroboration is capped at 30 days. Name every capability the swept providers lack, reading them off the capability matrix in `references/providers.md` — what MFA means on that provider, whether alert rules and cloud logs exist, whether remove-access is reachable — so the reader can tell a clean result from a blind spot.
 
@@ -46,8 +53,8 @@ MFA ENFORCEMENT SUMMARY
   Failed:          1 (policy applied but the verification check did not confirm it)
   Skipped:         2 (1 break-glass -> review with owner, 1 whose enforce command
                       needs manual handling -> guide still delivered)
-  Routed:     9 outside Found (5 API-only -> key hygiene, 2 federated -> IdP,
-              2 inactive -> inactive-identity cleanup)
+  Routed:     9 outside Found (5 API-only, 2 federated, 2 dormant - none of
+              them MFA gaps)
   No signal:  GCP (Workspace integration off)
   Alerts:     ~38 open no-MFA alerts commented + snoozed to their deadlines; they
               close after enrollment and the next scan (estimated from alert-type
