@@ -43,6 +43,7 @@
 | [`orca-cloud-cost-optimizer`](#orca-cloud-cost-optimizer) | "Where are we overspending and what should we fix first?" |
 | [`orca-custom-framework`](#orca-custom-framework) | "How do I create a custom compliance framework tailored to my needs?" |
 | [`orca-inactive-identities-cleanup`](#orca-inactive-identities-cleanup) | "Which of our identities are dead weight, and how do we safely disable or delete them?" |
+| [`orca-overprivileged-identities-rightsizing`](#orca-overprivileged-identities-rightsizing) | "Which of our identities hold far more permission than they use, and how do we safely cut them down?" |
 | [`orca-supply-chain-exposure`](skills/orca-supply-chain-exposure/) | "From this list of suspect packages, which are we actually running and where?" |
 | [`orca-cve-blast-radius`](skills/orca-cve-blast-radius/) | "This CVE just dropped — which assets are actually at risk?" |
 | [`orca-account-health`](skills/orca-account-health/) | "Is every account connected, synced, and fully scanned?" |
@@ -1117,6 +1118,82 @@ CLEANUP SUMMARY  (window: 60 days)
 ```
 
 [Full Documentation →](skills/orca-inactive-identities-cleanup/)
+
+</details>
+
+
+<details>
+<summary><strong><a id="orca-overprivileged-identities-rightsizing"></a>orca-overprivileged-identities-rightsizing</strong></summary>
+
+**"Which of our identities hold far more permission than they use, and how do we safely cut them down?"**
+
+Sweeps an account or business unit for over-privileged identities using Orca's pre-computed PoLP (Principle of Least Privilege) recommendations across AWS, Azure, and GCP. Ranks findings by identity risk score and drives right-sizing through a non-destructive path (stage the change as ready-to-run artifacts) or a destructive path (apply) that always requires an evidence-based safety check plus explicit confirmation.
+
+**Features:**
+- Anchored on Orca's recommendation engine: per-identity verdicts computed from ~90 days of observed usage
+- Typed fixes per identity: read-only swap, scope reduction, generated least-privilege policy, or JIT conversion
+- Risk-first ranking with a "how over-privileged" column (services used vs granted)
+- Stage-first flow: artifacts with rollback and verification embedded, nothing auto-applied
+- Evidence-based apply gate: replays the identity's actual recent activity (CDR) against the proposed change and reports exactly what would break
+- Explicit confirmation before any apply, with blast-radius preview for roles
+- Automatic exclusions: provider-managed identities, break-glass accounts, vendor/cross-account roles
+- Clean handoffs: inactive identities route to `orca-inactive-identities-cleanup`, JIT candidates to JIT conversion
+- Mandatory right-sizing summary: found, staged, applied, held, skipped, and the standing permissions the plan removes
+
+**Usage:**
+```bash
+# Sweep an account or business unit
+/orca-overprivileged-identities-rightsizing 123456789012
+/orca-overprivileged-identities-rightsizing "Production"
+
+# Scope, provider, or pre-selected path
+/orca-overprivileged-identities-rightsizing 123456789012 --only nhis
+/orca-overprivileged-identities-rightsizing 123456789012 --cloud aws
+/orca-overprivileged-identities-rightsizing 123456789012 --action stage
+
+# Or use natural language
+right-size the over-privileged identities in acme-production
+which roles have permissions they never use?
+who has admin but only ever reads?
+```
+
+**Drill-down keywords** (type after the sweep):
+```
+detail <identity>   # Full evidence: used vs granted, the recommendation
+stage <ids|all>     # Generate right-sizing artifacts (nothing applied)
+apply <ids>         # Apply flow (safety check + explicit confirmation)
+safecheck <identity># Run the CDR replay on its own
+cloud <provider>    # aws | azure | gcp
+only <bucket>       # users | nhis
+```
+
+**Example output:**
+```
+═══════════════════════════════════════════════════════════════════
+OVER-PRIVILEGED IDENTITY RIGHT-SIZING — acme-production
+Engine window: ~90 days | AWS + Azure + GCP
+═══════════════════════════════════════════════════════════════════
+
+31 identities hold permissions they haven't used in ~90 days:
+9 users, 22 NHIs. 7 carry high or critical risk; right-sizing
+removes ~840 unused permissions.
+
+TOP RISK (highest first):
+  #  Identity        Type     Provider  Uses            Recommendation    Risk      Change
+  1  deploy-runner   Role     AWS       3 of 41 svcs    Reduce perms      Critical  Apply least-priv policy
+  2  ops-sp-legacy   SP       Azure     read-only use   Read-only swap    High      Swap to Reader
+  3  etl-sa          SA       GCP       narrow scope    Scope reduction   High      Re-scope binding
+
+QUICK WINS: 5 identities only ever read; swap to read-only today.
+
+RIGHT-SIZING SUMMARY  (engine window: ~90 days)
+  Found: 31 | Proposed: 24 | Staged: 0 | Applied: 0 | Held: 0 | Skipped: 3 | JIT: 4
+  Handed off: 12 inactive -> /orca-inactive-identities-cleanup
+  Removes: ~840 unused service grants once the staged plan is applied
+═══════════════════════════════════════════════════════════════════
+```
+
+[Full Documentation →](skills/orca-overprivileged-identities-rightsizing/)
 
 </details>
 
