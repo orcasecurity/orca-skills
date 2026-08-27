@@ -1,0 +1,134 @@
+{
+ "versions": [
+  {
+   "versionKey": {
+    "version": "10.0.0"
+   }
+  },
+  {
+   "versionKey": {
+    "version": "10.0.1"
+   }
+  },
+  {
+   "versionKey": {
+    "version": "10.1.0"
+   }
+  },
+  {
+   "versionKey": {
+    "version": "10.2.0"
+   }
+  },
+  {
+   "versionKey": {
+    "version": "10.3.0"
+   }
+  },
+  {
+   "versionKey": {
+    "version": "10.4.0"
+   }
+  },
+  {
+   "versionKey": {
+    "version": "11.0.0"
+   }
+  },
+  {
+   "versionKey": {
+    "version": "11.1.0"
+   }
+  },
+  {
+   "versionKey": {
+    "version": "11.2.1"
+   }
+  },
+  {
+   "versionKey": {
+    "version": "11.3.0"
+   }
+  },
+  {
+   "versionKey": {
+    "version": "12.0.0"
+   }
+  },
+  {
+   "versionKey": {
+    "version": "12.1.0"
+   }
+  },
+  {
+   "versionKey": {
+    "version": "12.1.1"
+   }
+  },
+  {
+   "versionKey": {
+    "version": "12.2.0"
+   }
+  },
+  {
+   "versionKey": {
+    "version": "12.3.0"
+   }
+  },
+  {
+   "versionKey": {
+    "version": "8.3.1"
+   }
+  },
+  {
+   "versionKey": {
+    "version": "8.3.2"
+   }
+  },
+  {
+   "versionKey": {
+    "version": "8.4.0"
+   }
+  },
+  {
+   "versionKey": {
+    "version": "9.0.0"
+   }
+  },
+  {
+   "versionKey": {
+    "version": "9.0.1"
+   }
+  },
+  {
+   "versionKey": {
+    "version": "9.1.0"
+   }
+  },
+  {
+   "versionKey": {
+    "version": "9.1.1"
+   }
+  },
+  {
+   "versionKey": {
+    "version": "9.2.0"
+   }
+  },
+  {
+   "versionKey": {
+    "version": "9.3.0"
+   }
+  },
+  {
+   "versionKey": {
+    "version": "9.4.0"
+   }
+  },
+  {
+   "versionKey": {
+    "version": "9.5.0"
+   }
+  }
+ ]
+}

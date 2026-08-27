@@ -6,12 +6,22 @@
 .AppleDouble
 .LSOverride
 
+# Agent instructions — local, not shared
+CLAUDE.md
+
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+
+# Python (plugins/security-engineer)
+**/__pycache__/
+*.py[cod]
+
+# Orchestrator runtime log — written beside whichever tree last ran
+security-engineer-run.json
 
 # Node
 node_modules/

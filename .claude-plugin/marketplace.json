@@ -15,6 +15,16 @@
         "name": "Orca Security",
         "email": "support@orca.security"
       }
+    },
+    {
+      "name": "security-engineer",
+      "description": "Autonomous security agent that remediates Orca alerts with validation, impact analysis, and notifications",
+      "version": "1.0.0",
+      "source": "./plugins/security-engineer",
+      "author": {
+        "name": "Orca Security",
+        "email": "support@orca.security"
+      }
     }
   ]
 }

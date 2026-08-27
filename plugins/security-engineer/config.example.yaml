@@ -1,0 +1,68 @@
+# Example configuration for the Security Engineer orchestrator.
+#
+# Point SECURITY_ENGINEER_CONFIG at a copy of this file to override any of the
+# built-in defaults:
+#
+#     export SECURITY_ENGINEER_CONFIG=/path/to/your-config.yaml
+#
+# Reading it needs PyYAML. Without PyYAML the orchestrator warns once and runs
+# on the defaults below rather than failing — so if a setting here appears not
+# to take effect, check for that warning first.
+#
+# Every key is optional; anything omitted keeps its default. Secrets are not
+# configured here — ORCA_API_TOKEN and NOTIFY_WEBHOOK_URL stay in the
+# environment. The values shown are the shipped defaults unless noted.
+
+# Gate 4: the Orca GitHub App check, polled on the PR head commit after the pull
+# request is opened. It is the only gate that judges the fix with the same
+# scanner that raised the alert, which makes it the strongest one here.
+orca_check:
+  enabled: true
+
+  # Matched as a case-insensitive SUBSTRING against the names of the check runs
+  # on the head commit. The Orca GitHub App posts one check per scanner —
+  # "Orca Security - SAST", "Orca Security - Vulnerabilities",
+  # "Orca Security - IaC", "Orca Security - Secrets",
+  # "Orca Security - OSS Licenses" — so the shared prefix matches them all.
+  #
+  # Getting this wrong is quiet, not loud: no check matches, the gate takes the
+  # on_not_found path, and the run reports needs-review instead of an error.
+  # Change it only if your tenant names its checks differently.
+  check_name: "Orca Security"
+
+  timeout_sec: 600        # how long to wait for the check to complete
+  poll_interval_sec: 15   # delay between polls
+
+  # On findings, the orchestrator reverts the fix and re-invokes the fix agent
+  # with the check's annotations as feedback — the one retry in the harness that
+  # carries new information. This is how many times it may do that.
+  max_retries: 1
+
+  # What happens once the retries are spent: retry | fail | skip
+  on_failure: retry
+
+  # What happens when the check never appears: skip | fail
+  #
+  # "skip" passes the gate and flags the PR needs-review, so a repository
+  # without the Orca App installed still gets its pull request. Use "fail" where
+  # a silent gate is worse than a blocked one — but note that re-running the fix
+  # agent cannot make a GitHub App appear, so a missing check is an environment
+  # problem, not a code regression.
+  on_not_found: skip
+
+# The OSV.dev + deps.dev lookup behind CVE version decisions. Both APIs are free
+# and unauthenticated; the on-disk cache is what keeps a 12-way concurrent run
+# from hammering them.
+version_data:
+  enabled: true                 # false reverts CVEs to the generic pipeline
+  cache_dir: ""                 # empty means ~/.cache/security-engineer/version-data
+  cache_ttl_sec: 21600          # 6 hours; 0 forces a refetch
+  timeout_sec: 20               # per-request HTTP timeout
+  offline: false                # true serves from cache only, never calls out
+  osv_url: ""                   # empty means the upstream default
+  deps_dev_url: ""
+
+# Concurrency caps. At most max_parallel_repos x max_parallel_fixes Claude
+# subprocesses run at once, so the defaults below allow 12.
+max_parallel_fixes: 4
+max_parallel_repos: 3

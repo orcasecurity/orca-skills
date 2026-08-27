@@ -1,0 +1,26 @@
+{
+  "name": "security-engineer",
+  "displayName": "Orca Security Engineer",
+  "description": "Autonomous security agent that remediates Orca alerts with validation, impact analysis, and notifications",
+  "version": "1.0.0",
+  "author": {
+    "name": "Orca Security",
+    "email": "support@orca.security"
+  },
+  "homepage": "https://github.com/orcasecurity/orca-skills/tree/main/plugins/security-engineer",
+  "repository": "https://github.com/orcasecurity/orca-skills",
+  "license": "MIT",
+  "keywords": [
+    "security",
+    "orca",
+    "remediation",
+    "vulnerability-management",
+    "cve",
+    "sast",
+    "iac",
+    "secrets",
+    "supply-chain",
+    "automation",
+    "pull-request"
+  ]
+}
