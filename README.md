@@ -48,6 +48,7 @@
 | [`orca-cve-blast-radius`](skills/orca-cve-blast-radius/) | "This CVE just dropped — which assets are actually at risk?" |
 | [`orca-account-health`](skills/orca-account-health/) | "Is every account connected, synced, and fully scanned?" |
 | [`orca-k8s-connector-troubleshoot`](#orca-k8s-connector-troubleshoot) | "Why isn't my Kubernetes Connector installing or connecting?" |
+| [`orca-admin-access-grouping`](#orca-admin-access-grouping) | "How few policies do our admins actually need, and who goes in each?" |
 
 ### Recommended Workflows
 
@@ -1194,6 +1195,88 @@ RIGHT-SIZING SUMMARY  (engine window: ~90 days)
 ```
 
 [Full Documentation →](skills/orca-overprivileged-identities-rightsizing/)
+
+</details>
+
+<details>
+<summary><strong><a id="orca-admin-access-grouping"></a>orca-admin-access-grouping</strong></summary>
+
+**"How few policies do our admins actually need, and who goes in each one?"**
+
+> **Needs an Orca API token — you may already have one.** This skill reads an Orca REST endpoint, which cannot reuse an MCP session.
+> - **If you configured the Orca MCP with token auth** (an `.mcp.json` holding `"Authorization": "Token ..."`), you are done. The skill finds it.
+> - **If you use the OAuth MCP config or a claude.ai connector**, there is no token on disk. Create one ([docs](https://docs.orcasecurity.io/docs/managing-api-tokens)) and save it:
+>   ```bash
+>   mkdir -p ~/.orca && chmod 700 ~/.orca
+>   echo 'PASTE_YOUR_TOKEN' > ~/.orca/token && chmod 600 ~/.orca/token
+>   ```
+> No region needed — the token identifies its own Orca instance. Just run the skill: if something is missing it names the exact file and problem before reading anything.
+
+Reads Orca's pre-computed admin clustering (IAM Policy Optimizer) for AWS, Azure, and GCP, which has already sorted the org's admin population into groups by what each admin actually does and generated one least-privilege policy per group. Presents the engine's recommended grouping, shows what each group would get instead of blanket `AdministratorAccess` / `Owner`, and drives the swap through a non-destructive path (stage) or a destructive path (apply) that always requires explicit per-group confirmation.
+
+**Features:**
+- One org-wide API call returns every group with every member — no 50-result ceiling, so enumeration is complete rather than best-effort
+- Defaults to the engine's own recommended plan; other groupings (tighter policies vs fewer policies to maintain) available on request
+- Leads with the inactive bucket: admins Orca found no observed actions for, handed off to `/orca-inactive-identities-cleanup`
+- Surfaces the union trade-off explicitly — a group policy is the union of its members' observed actions, so each member gains whatever their group-mates used
+- Per-provider accuracy: AWS emits an IAM policy (action-scoped, `Resource: "*"`), Azure a custom RBAC role, GCP a custom role — all as drafts needing scope and naming fixes before deployment
+- Honest about population: covers admins that already carry an Orca PoLP recommendation, not every admin in the org
+- Bounded enrichment: risk scores, still-an-admin re-checks, and last activity only when drilling into a group
+- Apply gate: activity replay against the proposed policy, blast-radius check for roles / service principals / managed identities, explicit confirmation naming the group
+- Mandatory grouping summary: in scope, inactive, grouped, proposed, staged, applied, held, skipped
+
+**Usage:**
+```bash
+# Default run — engine-recommended grouping, all providers
+/orca-admin-access-grouping
+
+# Narrow or re-plan
+/orca-admin-access-grouping --cloud aws
+/orca-admin-access-grouping --plan 3
+/orca-admin-access-grouping --group 2
+
+# Or use natural language
+group our admins and show me what each group would get
+how many admin policies do we actually need?
+replace AdministratorAccess with something scoped
+```
+
+**Drill-down keywords** (type after the run):
+```
+group <n>           # Members, risk, still-admin status, and the union delta
+plan <n>            # Re-render against a different number of groups
+stage <group|all>   # Generate artifacts, apply nothing
+apply <group>       # Apply flow (replay + explicit confirmation required)
+safecheck <group>   # Run the activity replay on its own
+cloud <provider>    # aws | azure | gcp
+```
+
+**Example output:**
+```
+═══════════════════════════════════════════════════════════════════
+ADMIN ACCESS GROUPING — acme-corp
+Plan: plan_2 (engine recommendation) | AWS + GCP
+═══════════════════════════════════════════════════════════════════
+
+61 of the 67 AWS admins Orca can act on show no observed activity
+in the last 90 days. The remaining 6 need two policies between them.
+
+GROUPS (biggest standing-risk reduction first):
+  #  Group     Members  Granted  Avg used  Instead of
+  1  policy_1  5        16       3         AdministratorAccess
+  2  policy_2  1        136      136       AdministratorAccess
+
+UNION NOTE: in group 1, three members gain iam:CreateUser and
+iam:DeleteUser from a fourth. Review before applying.
+
+INACTIVE: 61 admins → /orca-inactive-identities-cleanup
+
+ADMIN GROUPING SUMMARY  (window: last 90 days; artifact: daily snapshot)
+  In scope: 67 | Inactive: 61 | Grouped: 6 | Proposed: 2 | Applied: 0
+═══════════════════════════════════════════════════════════════════
+```
+
+[Full Documentation →](skills/orca-admin-access-grouping/)
 
 </details>
 
