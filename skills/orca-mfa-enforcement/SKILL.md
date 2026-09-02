@@ -1,6 +1,6 @@
 ---
 name: orca-mfa-enforcement
-description: MFA enforcement - finds users who can sign in without multi-factor authentication across an account, business unit, or tag in every cloud Orca supports, ranks them by identity risk score, and drives either guided enrollment or gated enforcement. Use when the user wants to find users without MFA, enforce MFA or 2FA, check MFA or root-account MFA coverage, or produce MFA coverage evidence for an audit.
+description: Finds users who can sign in without MFA across an account, business unit, or tag, ranks them by identity risk, and drives guided enrollment or gated enforcement. Use for MFA or 2FA gaps, root-account MFA, and MFA coverage evidence for an audit.
 trigger: When the user asks to "enforce MFA", "find users without MFA", "who has no MFA / 2FA / two-factor", "check MFA coverage", "enable MFA for everyone", "close the MFA gap", "which admins lack MFA", "does our root account have MFA", "check root MFA", "who needs hardware MFA", "remove unused console passwords", or passes an account / business unit / tag for an MFA sweep.
 ---
 
@@ -141,7 +141,9 @@ Every enforce or remove-access artifact embeds: the affected users, the conseque
 |-------|---------|
 | Identity name | `^[A-Za-z0-9_+=,.@-]+$` (the IAM-safe set) |
 | ARN | `^arn:[a-z0-9-]+:[a-z0-9-]*:[a-z0-9-]*:[0-9]*:[A-Za-z0-9_+=,.@/:*-]+$` |
-| OCID | `^ocid1\.[a-z0-9.]+$` | A name that fails the pattern is excluded from **generated commands only** — it still gets the full guide treatment, because enrollment instructions and owner notifications are prose and interpolate nothing. Such a user is reported as Guided with a note that its enforce or remove-access step needs manual handling, and only counts as Skipped if that command was the sole action requested for it.
+| OCID | `^ocid1\.[a-z0-9.]+$` |
+
+A value that fails its pattern is excluded from **generated commands only** — it still gets the full guide treatment, because enrollment instructions and owner notifications are prose and interpolate nothing. Such a user is reported as Guided with a note that its enforce or remove-access step needs manual handling, and only counts as Skipped if that command was the sole action requested for it.
 
 ### Step 6: Confirmation gate (enforce path)
 
