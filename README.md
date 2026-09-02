@@ -42,7 +42,13 @@
 | [`orca-investigate`](#orca-investigate) | "What happened, who did it, and how far did they get?" |
 | [`orca-cloud-cost-optimizer`](#orca-cloud-cost-optimizer) | "Where are we overspending and what should we fix first?" |
 | [`orca-custom-framework`](#orca-custom-framework) | "How do I create a custom compliance framework tailored to my needs?" |
+| [`orca-inactive-identities-cleanup`](#orca-inactive-identities-cleanup) | "Which of our identities are dead weight, and how do we safely disable or delete them?" |
+| [`orca-overprivileged-identities-rightsizing`](#orca-overprivileged-identities-rightsizing) | "Which of our identities hold far more permission than they use, and how do we safely cut them down?" |
 | [`orca-mfa-enforcement`](#orca-mfa-enforcement) | "Who can sign in without MFA, and how do we close that gap without locking anyone out?" |
+| [`orca-supply-chain-exposure`](skills/orca-supply-chain-exposure/) | "From this list of suspect packages, which are we actually running and where?" |
+| [`orca-cve-blast-radius`](skills/orca-cve-blast-radius/) | "This CVE just dropped — which assets are actually at risk?" |
+| [`orca-account-health`](skills/orca-account-health/) | "Is every account connected, synced, and fully scanned?" |
+| [`orca-k8s-connector-troubleshoot`](#orca-k8s-connector-troubleshoot) | "Why isn't my Kubernetes Connector installing or connecting?" |
 
 ### Recommended Workflows
 
@@ -53,6 +59,12 @@
 > **Incident response:** Investigate → Identity review → Asset profile → Contain and remediate
 >
 > **Custom compliance:** Custom framework → Compliance gaps → Impact analysis → Remediate
+>
+> **Reactive (advisory landed):** Supply chain exposure → CVE blast radius → Impact analysis → Fix
+>
+> **Pre-audit / pre-investigation:** Account health → Compliance gaps / Investigate (trust the data first)
+>
+> **Connector setup:** Connector troubleshoot → (escalate to support if a known platform limitation)
 
 ## Installation
 
@@ -1081,39 +1093,183 @@ COVERAGE GAPS (suggest custom discovery alerts):
 
 </details>
 
+<details>
+<summary><strong><a id="orca-k8s-connector-troubleshoot"></a>orca-k8s-connector-troubleshoot</strong></summary>
 
-## Testing
+**"Why isn't my Kubernetes Connector installing or connecting?"**
 
-All skills include automated evaluations using [Promptfoo](https://www.promptfoo.dev/).
+Self-serve troubleshooting for the Kubernetes Connector (K8s Tunnel Client, Helm chart `orca-tunnel`). Takes raw customer input — an error message, `helm status`, `kubectl describe`, or pod logs — and maps it to a known install-time or runtime failure category, then walks through step-by-step remediation led by a one-line fix before the technical detail. Asks clarifying questions when the input is ambiguous, and produces a clean support handoff for anything it can't resolve, including known platform limitations that aren't fixable from the customer's side.
 
-### Run Tests Locally
+**Features:**
+- Triages input into install-time (chart never deployed) vs. runtime (deployed, tunnel/scan not working), starting with a sanity check on whether the cluster needs the Connector at all
+- Includes a symptom → category quick-reference table so a pasted error jumps straight to the fix instead of scanning the full list
+- Covers 15 known failure categories: TLS/network connectivity, RBAC, image pulls, bad `--set` parameters, version incompatibility, duplicate cluster entries, resource constraints, custom namespaces, expired service-account tokens (K8s 1.30+), NetworkPolicy blocking API-server egress, tunnel auth drops, proxy misconfiguration (including TLS-inspecting proxies), DNS failures, OpenShift SCC issues, and "connected but no scan data"
+- Recognizes platform limitations the customer can't self-fix (e.g. BYOC accounts don't run Kubernetes scanning, stale tunnel targets, a known AKS tunnel-crash bug) and escalates instead of looping — while pointing to the self-service delete API for duplicate cluster entries instead of escalating that case
+- Produces a structured support handoff summary (cluster type, connector version, category, IDs, logs) when it can't resolve the issue
 
+**Usage:**
 ```bash
-# Install Promptfoo
-npm install -g promptfoo
+/orca-k8s-connector-troubleshoot <paste error, helm status, kubectl describe, or pod logs>
 
-# Set your API key
-export ANTHROPIC_API_KEY="your-key"
-
-# Run all tests
-promptfoo eval
-
-# View results
-promptfoo view
+# Or natural language
+the k8s connector pod is stuck in ImagePullBackOff
+tunnel keeps disconnecting, logs show TLS handshake timeout
+cluster shows connected in Orca but no inventory data is showing up
 ```
 
-See [EVALS.md](EVALS.md) for detailed testing guide, including:
-- Test coverage per skill
-- Adding new test cases
-- CI/CD integration
-- Debugging failed tests
+[Full Documentation →](skills/orca-k8s-connector-troubleshoot/)
 
-**Test suite includes ~30 test cases covering:**
-- Skill triggering from natural language
-- Output format validation
-- Error handling
-- Cross-model compatibility
-- Proactive remediation behavior
+</details>
+
+
+<details>
+<summary><strong><a id="orca-inactive-identities-cleanup"></a>orca-inactive-identities-cleanup</strong></summary>
+
+**"Which of our identities are dead weight, and how do we safely disable or delete them?"**
+
+Sweeps an account or business unit for inactive identities (users, groups, and non-human identities) across every cloud provider Orca supports: AWS, Azure (incl. Entra ID), GCP (incl. Google Workspace), Alibaba Cloud, OCI, and Tencent Cloud. Ranks findings by identity risk score and drives cleanup through a non-destructive path (disable) or a destructive path (delete) that always requires explicit confirmation.
+
+**Features:**
+- Asks for the inactivity time frame if not given (90 days is Orca's built-in convention; 30/60/180 or custom supported)
+- Cross-cloud coverage: users, groups, and NHIs for all six supported providers
+- Anchored on Orca's pre-computed activity verdict (last-active timestamps), with CDR corroboration
+- Risk-first ranking: dormant admins, exposed credentials, and crown-jewel reach float to the top
+- Disable-first flow: reversible deactivation now, delete after a grace period
+- Explicit confirmation gate before any delete, with blast-radius preview (what still references the identity)
+- Automatic exclusions: break-glass accounts, identities too new to judge, possibly-human edge cases
+- Ready-to-run remediation artifacts (CLI/Terraform) with deletion prerequisites ordered correctly
+- Mandatory cleanup summary: found, disabled, deleted, proposed, skipped, and an estimate of alerts that will close
+
+**Usage:**
+```bash
+# Sweep an account or business unit
+/orca-inactive-identities-cleanup 123456789012
+/orca-inactive-identities-cleanup "Production"
+
+# Custom time frame, scope, or action
+/orca-inactive-identities-cleanup 123456789012 --inactive 60d
+/orca-inactive-identities-cleanup 123456789012 --only nhis
+/orca-inactive-identities-cleanup 123456789012 --action disable
+
+# Or use natural language
+clean up inactive identities in acme-production
+which users haven't been active in the last 60 days?
+disable the dormant service accounts in the Production BU
+```
+
+**Drill-down keywords** (type after the sweep):
+```
+detail <identity>   # Full evidence for one identity
+disable <ids|all>   # Generate disable artifacts
+delete <ids>        # Delete flow (explicit confirmation required)
+window <Nd>         # Re-run with a different time frame
+only <bucket>       # users | groups | nhis
+cloud <provider>    # aws | azure | gcp | alicloud | oci | tencent
+```
+
+**Example output:**
+```
+═══════════════════════════════════════════════════════════════════
+INACTIVE IDENTITY CLEANUP — acme-production
+Window: 60 days | AWS + Azure + GCP
+═══════════════════════════════════════════════════════════════════
+
+62 identities inactive for 60+ days: 41 users, 6 groups, 15 NHIs.
+9 carry high or critical risk.
+
+TOP RISK (highest first):
+  #  Identity              Type      Provider  Last active  Risk      Action
+  1  legacy-admin          IAM user  AWS       142d ago     Critical  Disable now
+  2  svc-deploy-old        SP        Azure     never        High      Disable now
+  3  ci-runner-2019        Role      AWS       201d ago     High      Disable now
+
+QUICK WINS: 12 identities with zero privileges and zero activity.
+
+CLEANUP SUMMARY  (window: 60 days)
+  Found:     62 | Disabled: 0 | Deleted: 0 | Proposed: 55 | Skipped: 7
+  Alerts:    ~24 open alerts on these identities close after the next scan
+═══════════════════════════════════════════════════════════════════
+```
+
+[Full Documentation →](skills/orca-inactive-identities-cleanup/)
+
+</details>
+
+
+<details>
+<summary><strong><a id="orca-overprivileged-identities-rightsizing"></a>orca-overprivileged-identities-rightsizing</strong></summary>
+
+**"Which of our identities hold far more permission than they use, and how do we safely cut them down?"**
+
+Sweeps an account or business unit for over-privileged identities using Orca's pre-computed PoLP (Principle of Least Privilege) recommendations across AWS, Azure, and GCP. Ranks findings by identity risk score and drives right-sizing through a non-destructive path (stage the change as ready-to-run artifacts) or a destructive path (apply) that always requires an evidence-based safety check plus explicit confirmation.
+
+**Features:**
+- Anchored on Orca's recommendation engine: per-identity verdicts computed from ~90 days of observed usage
+- Typed fixes per identity: read-only swap, scope reduction, generated least-privilege policy, or JIT conversion
+- Risk-first ranking with a "how over-privileged" column (services used vs granted)
+- Stage-first flow: artifacts with rollback and verification embedded, nothing auto-applied
+- Evidence-based apply gate: replays the identity's actual recent activity (CDR) against the proposed change and reports exactly what would break
+- Explicit confirmation before any apply, with blast-radius preview for roles
+- Automatic exclusions: provider-managed identities, break-glass accounts, vendor/cross-account roles
+- Clean handoffs: inactive identities route to `orca-inactive-identities-cleanup`, JIT candidates to JIT conversion
+- Mandatory right-sizing summary: found, staged, applied, held, skipped, and the standing permissions the plan removes
+
+**Usage:**
+```bash
+# Sweep an account or business unit
+/orca-overprivileged-identities-rightsizing 123456789012
+/orca-overprivileged-identities-rightsizing "Production"
+
+# Scope, provider, or pre-selected path
+/orca-overprivileged-identities-rightsizing 123456789012 --only nhis
+/orca-overprivileged-identities-rightsizing 123456789012 --cloud aws
+/orca-overprivileged-identities-rightsizing 123456789012 --action stage
+
+# Or use natural language
+right-size the over-privileged identities in acme-production
+which roles have permissions they never use?
+who has admin but only ever reads?
+```
+
+**Drill-down keywords** (type after the sweep):
+```
+detail <identity>   # Full evidence: used vs granted, the recommendation
+stage <ids|all>     # Generate right-sizing artifacts (nothing applied)
+apply <ids>         # Apply flow (safety check + explicit confirmation)
+safecheck <identity># Run the CDR replay on its own
+cloud <provider>    # aws | azure | gcp
+only <bucket>       # users | nhis
+```
+
+**Example output:**
+```
+═══════════════════════════════════════════════════════════════════
+OVER-PRIVILEGED IDENTITY RIGHT-SIZING — acme-production
+Engine window: ~90 days | AWS + Azure + GCP
+═══════════════════════════════════════════════════════════════════
+
+31 identities hold permissions they haven't used in ~90 days:
+9 users, 22 NHIs. 7 carry high or critical risk; right-sizing
+removes ~840 unused permissions.
+
+TOP RISK (highest first):
+  #  Identity        Type     Provider  Uses            Recommendation    Risk      Change
+  1  deploy-runner   Role     AWS       3 of 41 svcs    Reduce perms      Critical  Apply least-priv policy
+  2  ops-sp-legacy   SP       Azure     read-only use   Read-only swap    High      Swap to Reader
+  3  etl-sa          SA       GCP       narrow scope    Scope reduction   High      Re-scope binding
+
+QUICK WINS: 5 identities only ever read; swap to read-only today.
+
+RIGHT-SIZING SUMMARY  (engine window: ~90 days)
+  Found: 31 | Proposed: 24 | Staged: 0 | Applied: 0 | Held: 0 | Skipped: 3 | JIT: 4
+  Handed off: 12 inactive -> /orca-inactive-identities-cleanup
+  Removes: ~840 unused service grants once the staged plan is applied
+═══════════════════════════════════════════════════════════════════
+```
+
+[Full Documentation →](skills/orca-overprivileged-identities-rightsizing/)
+
+</details>
 
 ## Contributing
 
