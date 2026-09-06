@@ -44,6 +44,7 @@
 | [`orca-custom-framework`](#orca-custom-framework) | "How do I create a custom compliance framework tailored to my needs?" |
 | [`orca-inactive-identities-cleanup`](#orca-inactive-identities-cleanup) | "Which of our identities are dead weight, and how do we safely disable or delete them?" |
 | [`orca-overprivileged-identities-rightsizing`](#orca-overprivileged-identities-rightsizing) | "Which of our identities hold far more permission than they use, and how do we safely cut them down?" |
+| [`orca-mfa-enforcement`](#orca-mfa-enforcement) | "Who can sign in without MFA, and how do we close that gap without locking anyone out?" |
 | [`orca-supply-chain-exposure`](skills/orca-supply-chain-exposure/) | "From this list of suspect packages, which are we actually running and where?" |
 | [`orca-cve-blast-radius`](skills/orca-cve-blast-radius/) | "This CVE just dropped — which assets are actually at risk?" |
 | [`orca-account-health`](skills/orca-account-health/) | "Is every account connected, synced, and fully scanned?" |
@@ -806,6 +807,79 @@ RECOMMENDED ACTION:
 ```
 
 [Full Documentation →](skills/orca-identity-review/)
+
+</details>
+
+<details>
+<summary><strong><a id="orca-mfa-enforcement"></a>orca-mfa-enforcement</strong></summary>
+
+**"Who can sign in without MFA, and how do we close that gap without locking anyone out?"**
+
+MFA gap sweep across an account, business unit, or tag in every cloud Orca supports: finds users whose console sign-in is unprotected, ranks them by identity risk score, and drives remediation through guided enrollment or a gated enforcement path. A password-only user is one phish away from being an attacker, and no cloud lets an admin enroll MFA on someone's behalf, so enforcement means a policy that locks the user out until they enroll themselves.
+
+**Features:**
+- Cross-cloud coverage — AWS, Azure (incl. Entra ID), GCP (via Google Workspace), Alibaba Cloud, OCI, Tencent Cloud
+- Per-provider capability matrix — what MFA means on each cloud, and what each one cannot show you
+- Risk-first ranking with privilege, crown-jewel, and open-alert bumps
+- Root accounts handled fail-closed in their own bucket — an unreadable root signal escalates rather than being dismissed
+- Usage-aware remediation — a console password nobody uses is removed rather than enrolled
+- Three gated paths: guide (instructions + owner notifications), enforce (require-MFA policy), remove-access (delete an unused login profile)
+- Evidence-based confirmation — the consequence is restated before consent, and a bulk instruction never implies enforcement
+- Zero-finding runs publish proof of completeness rather than a bare "nothing found"
+- Closed loop — actions are commented and snoozed on the related alerts, with a post-scan recheck
+
+**Usage:**
+```bash
+# Sweep an account, business unit, or tag
+/orca-mfa-enforcement 123456789012
+/orca-mfa-enforcement "Production"
+/orca-mfa-enforcement --tag env=prod
+
+# Or use natural language
+who can log in without MFA?
+does our root account have MFA?
+find console users missing 2FA in the Production BU
+```
+
+**Drill-down keywords** (type after the sweep):
+```
+detail <user>     # Full evidence for one identity
+guide <ids|all>   # Enrollment instructions + owner notifications
+enforce <ids>     # Require-MFA policy (passes the confirmation gate)
+remove-access     # Delete an unused console password (gated)
+recheck           # Post-scan delta: who enrolled, which alerts closed
+cloud <provider>  # Re-scope to one cloud
+```
+
+**Example output:**
+```
+═══════════════════════════════════════════════════════════════════
+MFA SWEEP — acme-production
+═══════════════════════════════════════════════════════════════════
+
+8 users can sign in without MFA, including the root account.
+2 are privileged. 1 signed in password-only this week.
+
+ #  Identity                                   Provider  Risk      Action
+ 1  arn:aws:iam::123456789012:user/deploy      AWS       Critical  Guide, then enforce
+ 2  arn:aws:iam::123456789012:root             AWS       High      Guide only (root)
+ 3  arn:aws:iam::123456789012:user/analyst     AWS       High      Remove unused password
+
+ROOT ACCOUNT:
+  No API can enroll MFA on root — the account owner must do it signed
+  in as root. Hardware MFA recommended (CIS).
+
+QUICK WINS:
+  6 console passwords were never used. Removing them closes the gap
+  with zero user friction, and access keys are untouched.
+
+MFA ENFORCEMENT SUMMARY
+  Found: 8   Proposed: 8   Guided: 0   Enforced: 0   Skipped: 0
+  Routed: 18 outside Found (14 API-only, 4 dormant — not MFA gaps)
+═══════════════════════════════════════════════════════════════════
+```
+
+[Full Documentation →](skills/orca-mfa-enforcement/)
 
 </details>
 
