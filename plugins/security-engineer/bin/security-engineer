@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Entry point for the Security Engineer orchestrator.
+#
+# Claude Code puts every installed plugin's bin/ directory on PATH, so this is
+# callable as a plain `security-engineer` from a skill body, a slash command, or
+# a terminal. That matters because the interpolations a slash command relies on
+# — ${CLAUDE_PLUGIN_ROOT}, $ARGUMENTS — are not expanded inside a SKILL.md body,
+# and the env vars are empty in an ordinary Bash tool call, so a natural-language
+# invocation had no working path to the orchestrator.
+set -euo pipefail
+
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+orchestrator="$here/../skills/run/orchestrator.py"
+
+if [[ ! -f "$orchestrator" ]]; then
+  echo "security-engineer: orchestrator not found at $orchestrator" >&2
+  echo "security-engineer: the plugin install looks incomplete — reinstall it." >&2
+  exit 1
+fi
+
+# -u so the pipeline's progress lines reach the caller as they happen rather
+# than in one block when the run ends.
+exec python3 -u "$orchestrator" "$@"

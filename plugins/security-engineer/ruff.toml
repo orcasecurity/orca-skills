@@ -1,0 +1,56 @@
+# Lint configuration — the contract CI enforces (.github/workflows/ci.yml).
+#
+# Rules are selected explicitly rather than left to ruff's defaults, because
+# those defaults widen with every ruff release: a version bump would otherwise
+# turn a green PR red without a line of this repo changing.
+#
+# Formatting is deliberately NOT enforced. `ruff format` would rewrite 23 of the
+# 40 Python files here, and the wrapping it undoes — aligned table literals,
+# prose comments broken at sentence boundaries — is the part of this codebase
+# that makes it readable. Lint catches defects; layout stays a human call.
+
+target-version = "py310"  # the floor README.md advertises
+line-length = 100         # what `I` wraps import lines at; E501 is off, see below
+
+[lint]
+select = [
+    "F",    # pyflakes — unused imports, shadowed names, undefined lookups
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "I",    # import sorting
+    "B",    # flake8-bugbear — loop-variable capture, missing `raise ... from`
+    "UP",   # pyupgrade — keep syntax at the py310 floor
+    "C4",   # comprehension rewrites
+    "SIM",  # obvious simplifications
+    "PIE",  # small correctness/clarity wins
+    "ISC",  # implicit string concatenation — catches the missing-comma bug shape
+    "FURB", # modernizations
+    "RUF",  # ruff's own rules
+]
+
+ignore = [
+    # Every line over 100 chars in this repo is a single indivisible token: a
+    # JSON fixture in a test, or a JSON schema inside a prompt template that the
+    # fix agents are shown verbatim. Wrapping them would change what is asserted
+    # or what the model reads.
+    "E501",
+    # Entry points and tests run as scripts, so they extend sys.path to reach
+    # sibling modules before importing them. The imports cannot precede the
+    # bootstrap that makes them resolvable.
+    "E402",
+    # Console output and prose use en dashes and ℹ on purpose; they are not
+    # mistyped ASCII.
+    "RUF001",
+    # The class-level dicts and lists flagged here are lookup tables shared by
+    # every instance (timeouts, ecosystem maps), not per-instance state that
+    # could be mutated into a shared-default bug.
+    "RUF012",
+    # Stacked `with mock.patch(...)` blocks read better nested, one patch per
+    # line, than combined into a single wrapped statement.
+    "SIM117",
+]
+
+[lint.per-file-ignores]
+# Tests reach into private helpers by design, and shadow module-level names
+# inside test methods to keep each case self-contained.
+"**/tests/*" = ["SLF001"]

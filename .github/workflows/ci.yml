@@ -1,0 +1,92 @@
+name: CI
+
+# Every pull request that touches the security-engineer plugin, and nothing
+# else. The other 16 skills in this repo are plain Markdown with no runtime, so
+# a typo fix in a SKILL.md has no business running a five-version Python matrix.
+#
+# What CI can own is everything that runs without a token or a network: the unit
+# suites, the linters, and the plugin metadata. The pipeline that actually
+# matters — worktree lifecycle, what the validation gates see, whether the Orca
+# check gate fires — only exists in a live run against a repo Orca monitors,
+# which needs ORCA_API_TOKEN and somewhere to open pull requests. That stays a
+# manual pre-merge step; see plugins/security-engineer/README.md.
+#
+# `make e2e` is deliberately absent for the same reason — it would need the
+# token as a secret, and secrets are not available to pull requests from forks,
+# so the job would fail for exactly the contributors it should be helping.
+on:
+  pull_request:
+    paths:
+      - 'plugins/security-engineer/**'
+      - '.github/workflows/ci.yml'
+
+# A second push to a PR makes the first run's answer irrelevant.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Read-only: nothing here comments, labels, or pushes.
+permissions:
+  contents: read
+
+# Every target lives in the plugin subtree, not at the repo root.
+defaults:
+  run:
+    working-directory: plugins/security-engineer
+
+jobs:
+  test:
+    name: tests (python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      # One version failing shouldn't hide whether the others do. The whole
+      # point of the matrix is knowing which floor broke.
+      fail-fast: false
+      matrix:
+        # 3.10 is the floor the plugin README advertises, and it is a real
+        # constraint: PEP 701 f-strings and tomllib both landed later, and the
+        # code has to keep working without them.
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+    steps:
+      # Actions are pinned to full-length commit SHAs — org policy, enforced
+      # before the job starts. The trailing comment is the human-readable tag.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # The plugin is stdlib-only at runtime with one soft exception: config.py
+      # reads its YAML through PyYAML, and without it load_config() warns and
+      # returns defaults. The tests covering the parsed-config paths skip
+      # themselves when PyYAML is absent, so installing it here is what makes
+      # them run instead of quietly disappearing — hence the import check, which
+      # turns "the install silently no-oped" into a red job rather than a
+      # smaller test count nobody reads.
+      - name: Install PyYAML (config parsing)
+        run: |
+          pip install pyyaml==6.0.3
+          python3 -c "import yaml; print('PyYAML', yaml.__version__)"
+
+      - name: Unit tests
+        run: make test
+
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.12"
+
+      # Pinned, because both tools widen what they report between releases and
+      # an unpinned upgrade would fail a PR that changed nothing. Bumping these
+      # is a deliberate commit that also updates ruff.toml if the rules moved.
+      - name: Install linters
+        run: pip install ruff==0.16.1 shellcheck-py==0.11.0.1
+
+      # Same target a developer runs locally, so this cannot drift from `make lint`.
+      - name: Ruff, shellcheck, plugin metadata
+        run: make lint

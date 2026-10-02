@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "defaultMode": "default",
+    "deny": [
+      "Read(./.claude/**)",
+      "Edit(./.claude/**)",
+      "Write(./.claude/**)",
+      "Read(./.git/config)",
+      "Edit(./.git/config)",
+      "Write(./.git/config)"
+    ]
+  }
+}
