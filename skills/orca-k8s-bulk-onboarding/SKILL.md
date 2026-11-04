@@ -147,29 +147,33 @@ kubectl --context "<context>" -n orcasecurity create secret generic orca-tunnel-
   --from-literal=tunnelId="<tunnelId>" --from-literal=tunnelToken="<tunnelToken>"
 ```
 
-### Step 5: Loop the Connector Install
+### Step 5: Install the Connector Across the Batch
 
-For each cluster in the merged Connector batch:
+Split the merged Connector batch into two groups before installing anything — they're handled differently:
+
+**Non-self-managed clusters (cluster_type != k8s)** — call the bulk Helm script endpoint once with every such cluster's id, then run the returned script:
 
 ```bash
-helm install orca-tunnel --kube-context "<context>" \
-  --namespace orcasecurity --create-namespace \
-  oci://ghcr.io/orcasecurity/helm-k8s-tunnel --wait \
-  --set tunnelAddr="<tunnelAddr>" \
-  --set existingSecret=orca-tunnel-shared \
-  --set clusterName="<cluster_name>" \
-  --set cloudVendorId="<cloud_vendor_id>" \
-  --set region="<region>" \
-  --set clusterType="<cluster_type>" \
-  <situation-specific flag> \
-  <per-cluster flags>
+curl -s -X POST "https://<your-orca-api-host>/api/tunnel/<tunnelId>/helm/bulk_install_script" \
+  -H "Authorization: Bearer $ORCA_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"cluster_ids": ["<id-1>", "<id-2>", "..."]}' \
+  -o orca_k8s_connector_bulk_install.sh
+bash orca_k8s_connector_bulk_install.sh
 ```
 
-**Situation-specific flag:**
-- **Situation 3 (private, already discovered):** omit it entirely — the cluster record already exists, so the install just attaches the tunnel and transitions it to onboarded.
-- **Situation 4 (not discovered at all), or a situation-2 fallthrough with no matching cloud account:** add `--set isUndiscovered=true`. This requires chart `helm-k8s-tunnel` **v1.0.73+**; on an older chart version, use `--set automation=true` instead — it's the same flag under its older, less clear name, so either works, but prefer `isUndiscovered` on current chart versions since it says what it actually does.
+Before touching any cluster, the script detects your local kubeconfig contexts (`kubectl config view`) and cross-checks them against what Orca knows per cluster (in particular its API server endpoint) to suggest or correct each cluster's `--kube-context` value, then prints a summary table and asks for approval — type `e` to manually edit any row's context (or, for the Terraform script, its auth mode) before proceeding, or `a` to abort with nothing applied. Only after approval does it loop `helm install` per cluster, printing a per-cluster OK/FAIL summary at the end — it does not stop the batch on the first failure. Pass `-y`/`--yes` to accept all suggestions non-interactively (e.g. from CI), or `--no-detect` to skip the local kubeconfig lookup entirely. A cluster id that doesn't resolve to this organization, or that resolves to a self-managed cluster, is skipped and listed in a trailing comment rather than silently dropped — check that comment block against your intended batch before running.
 
-**Per-cluster flags — don't skip these, they're easy to forget in a batch:**
+**Self-managed clusters (cluster_type == k8s), and any cluster needing a per-cluster flag the bulk script can't express (OpenShift, proxy, tolerations, `forceSelfManaged`)** — install individually. Prefer the single-cluster command endpoint over hand-typing:
+
+```bash
+curl -s "https://<your-orca-api-host>/api/tunnel/<tunnelId>/helm/install_cmd?cluster_id=<id>" \
+  -H "Authorization: Bearer $ORCA_API_TOKEN"
+```
+
+append the flag(s) below, then run the returned command:
+
+- **Situation 4 (not discovered at all), or a situation-2 fallthrough with no matching cloud account:** add `--set isUndiscovered=true`. This requires chart `helm-k8s-tunnel` **v1.0.73+**; on an older chart version, use `--set automation=true` instead — it's the same flag under its older, less clear name, so either works, but prefer `isUndiscovered` on current chart versions since it says what it actually does.
 - **OpenShift target:** add `--set openshift=true` (and `--set openshiftSCC=<name>` only if it needs a non-default SCC — the chart defaults to `nonroot-v2`). Getting this wrong is silent: with `openshift=false` on an actual OpenShift cluster, the pod just fails admission with no obvious hint why (see `orca-k8s-connector-troubleshoot`, Category 14).
 - **Behind an enterprise proxy:** add `--set proxyURL=<url>` (FRP format, e.g. `http://user:pass@proxy.company.com:8080`).
 - **Tainted/dedicated node pools:** add `--set "tolerations[0].key=..." --set "tolerations[0].operator=..." --set "tolerations[0].value=..." --set "tolerations[0].effect=..."` (repeat the index for more than one toleration).
@@ -215,7 +219,8 @@ Anything not cleanly resolved needs a follow-up — retry the install (Step 5), 
 - **The Connector path bypasses the UI, not network prerequisites.** Every Connector-path cluster still needs outbound connectivity to the tunnel endpoint.
 - **"Onboarded" (Step 6) means connected, not scanned.** `status`/`connection_errors` reflect the tunnel being up and flip within a minute or two of install — they say nothing about whether a scan has run or findings/inventory exist yet for that cluster. Report Step 7 results based on connectivity, not on scan data showing up.
 - **The "instant" re-check only applies to the Connector path, never to native.** A Connector tunnel authenticating flips `status`/`connection_errors` synchronously (Step 6). A natively-reached cluster's `connection_errors` only updates on its cloud account's next scheduled scan unless you trigger the on-demand discovery endpoint in Step 2 — don't apply Step 6's "give it a minute" expectation to a situation-2 native fix.
-- **A single Terraform apply can't fan out across many real clusters** — provider configuration (kube context) can't be parameterized per `for_each` instance. See the Terraform module's `README.md` for the two supported multi-cluster patterns.
+- **The bulk Helm script endpoint (`/helm/bulk_install_script`) excludes self-managed clusters by design.** `cluster_type=k8s` clusters in your batch always need the per-cluster loop in Step 5 (manual, or the single-cluster `helm/install_cmd` endpoint called once per cluster) — they're never silently dropped, but they're also never in the generated script.
+- **Both bulk endpoints (`/helm/bulk_install_script` and `/terraform/bulk_install_script`) now return a single bash script**, not a zip or a bare `.tf` file. The Terraform one wraps a multi-cluster Terraform configuration (one aliased provider pair + `helm_release` per cluster, matching the "static provider aliases" pattern the Terraform module's `README.md` documents for a fixed fleet) and, before running `terraform apply`, goes through the same local-kubeconfig-detection → summary-table → approve/edit flow described in Step 5. Its `auth_mode` body field defaults to `auto`, which picks `cloud_native` per cluster where supported (EKS/AKS/GKE, and for AKS only when `resource_group_name` is known) and `kube_context` otherwise — nothing is excluded under `auto`. Pass `auth_mode=kube_context` to force kube-context for every cluster, or the strict `auth_mode=cloud_native` to force cloud-native and exclude (with a reason) anything that can't do it. Helm has no cloud-native mode (kube-context only).
 
 ## Reference Docs
 
