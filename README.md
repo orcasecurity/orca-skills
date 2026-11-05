@@ -38,7 +38,7 @@ people want the first one.
 
 | Plugin | What it is | Prerequisites |
 |---|---|---|
-| [`orca-skills`](#skills-overview) | 20 skills for cloud security analysis and guided remediation through the Orca MCP server | The Orca MCP server. Nothing else |
+| [`orca-skills`](#skills-overview) | 21 skills for cloud security analysis and guided remediation through the Orca MCP server | The Orca MCP server. Nothing else |
 | [`security-engineer`](plugins/security-engineer/) | An autonomous agent that **remediates** Orca findings in your source code and opens a pull request per fix | Python 3.10+, authenticated [`gh`](https://cli.github.com/), `ORCA_API_TOKEN` in the environment, network access to OSV.dev and deps.dev |
 
 They answer different questions and are kept apart on purpose: `orca-skills`
@@ -70,6 +70,7 @@ second plugin or any of its prerequisites.
 | [`orca-cve-blast-radius`](skills/orca-cve-blast-radius/) | "This CVE just dropped — which assets are actually at risk?" |
 | [`orca-account-health`](skills/orca-account-health/) | "Is every account connected, synced, and fully scanned?" |
 | [`orca-k8s-connector-troubleshoot`](#orca-k8s-connector-troubleshoot) | "Why isn't my Kubernetes Connector installing or connecting?" |
+| [`orca-k8s-bulk-onboarding`](#orca-k8s-bulk-onboarding) | "I have a batch of clusters — public, private, with or without connection issues — how do I get all of them connected in one pass?" |
 | [`orca-admin-access-grouping`](#orca-admin-access-grouping) | "How few policies do our admins actually need, and who goes in each?" |
 
 ### Recommended Workflows
@@ -87,6 +88,8 @@ second plugin or any of its prerequisites.
 > **Pre-audit / pre-investigation:** Account health → Compliance gaps / Investigate (trust the data first)
 >
 > **Connector setup:** Connector troubleshoot → (escalate to support if a known platform limitation)
+>
+> **Fleet onboarding:** Bulk onboarding (triage, native fixes, one shared tunnel) → Connector troubleshoot (per-cluster failures or dropped tunnels) → Account health (confirm coverage)
 >
 > **Code remediation:** CVE blast radius (which cloud assets are hit) → `security-engineer` (fix the repos that ship them, one PR per fix)
 
@@ -1207,6 +1210,38 @@ cluster shows connected in Orca but no inventory data is showing up
 ```
 
 [Full Documentation →](skills/orca-k8s-connector-troubleshoot/)
+
+</details>
+
+<details>
+<summary><strong><a id="orca-k8s-bulk-onboarding"></a>orca-k8s-bulk-onboarding</strong></summary>
+
+**"I have a batch of clusters — public, private, with or without connection issues — how do I get all of them fully connected in one pass?"**
+
+Gets many Kubernetes clusters fully connected to Orca in one pass by triaging each one first instead of defaulting every cluster to the Kubernetes Connector tunnel: public clusters blocked by a fixable native issue (network access, auth mode, permissions) get that fix applied first; private clusters Orca already knows about, and clusters Orca hasn't discovered at all, go straight to the Connector — resolving a cloud account for self-managed clusters, minting a single shared tunnel credential pair, and looping the chart install (with per-cluster flags like OpenShift) across every cluster that needs it, instead of a UI trip per cluster. Also covers wiring the Connector into a user's own CI/Terraform pipeline for clusters created dynamically.
+
+**Features:**
+- Classifies every target cluster (already healthy / public-but-blocked / private-discovered / undiscovered / disconnected-connector) before taking any action, so a fixable native issue doesn't get a tunnel it didn't need
+- For public-but-blocked clusters, pulls the live, per-cluster-type remediation (`title`/`explanation`/`fix_steps`/`cli_fix_steps`/`doc_links`) straight from Orca's own API rather than guessing a fix, and offers to apply CLI fixes with explicit per-command confirmation
+- Falls back to the Connector only when the native fix doesn't clear a block, or the user doesn't want to make the cloud-side change
+- For self-managed/undiscovered clusters with no cloud account of their own, lists the org's real cloud accounts and helps pick a suitable one — there's no placeholder account to fall back to
+- Mints exactly one tunnel credential pair for everything that needs the Connector and reuses the chart's `existingSecret` pattern so it never lands in shell history or `helm get values` output
+- Uses the chart's `isUndiscovered` flag (or its older equivalent, `automation`) only for genuinely undiscovered clusters, and surfaces easy-to-miss per-cluster flags (`openshift`, `proxyURL`, `forceSelfManaged`, tolerations) instead of silently skipping them
+- Loops the install without stopping on the first failure, verifies every Connector-path cluster comes online, and hands a dropped tunnel (`connector_disconnected`) or an install failure off to `orca-k8s-connector-troubleshoot` instead of re-diagnosing it
+- For clusters created dynamically by the user's own CI/Terraform, points to a reusable, fully-parameterized Terraform module instead of a one-off batch run
+- Produces one consolidated per-cluster results table spanning every path (native fix / Connector / already healthy / handed off)
+
+**Usage:**
+```bash
+/orca-k8s-bulk-onboarding <paste or attach a list of clusters: clusterName, region, cloudVendorId, clusterType, kube-context>
+
+# Or natural language
+bulk onboard these 20 clusters, here's the list
+these clusters show connection errors in Cluster Management, fix them
+our CI creates clusters dynamically, how do we auto-connect them to Orca
+```
+
+[Full Documentation →](skills/orca-k8s-bulk-onboarding/)
 
 </details>
 
