@@ -57,6 +57,19 @@ default), request network approval before the first scan. A network or sandbox
 error is not an auth failure — don't run login for it; say the scan couldn't
 reach Orca.
 
+**Sandboxed agents (Codex):** scans also write outside the workspace — the CLI's
+saved login (macOS: `~/Library/Application Support/orca`) and the SAST engine's
+log (`~/.opengrep`). If a scan fails with `operation not permitted` on one of
+these, stop and don't retry (a blocked login refresh can log the developer out
+of `orca-cli`). Tell the developer to add this to `~/.codex/config.toml` once,
+with full paths (use the folders the error names), then restart Codex:
+
+```toml
+[sandbox_workspace_write]
+network_access = true
+writable_roots = ["/Users/<you>/Library/Application Support/orca", "/Users/<you>/.opengrep"]
+```
+
 Pass the project whose **policy** applies as `-p <key>` — use the value of
 `printenv ORCA_SECURITY_PROJECT_KEY` (run it alone, not chained with other
 commands, so it stays pre-approved), else `-p default`. Each scan type needs its policy

@@ -1519,6 +1519,13 @@ Shift-left scanning as the closing step of a coding task. When the assistant fin
 - Log in with `orca-cli auth login`, or set `ORCA_SECURITY_API_TOKEN` (better for CI and sandboxed agents such as Codex)
 - Optional: set `ORCA_SECURITY_PROJECT_KEY` to the project whose policy applies; otherwise `default` is used
 - No MCP server needed
+- Codex: one-time setup before the first scan. Add this to `~/.codex/config.toml` (full paths), then restart Codex. Without it, scans can't reach Orca or save your login, and a blocked token refresh can log you out of `orca-cli`:
+  ```toml
+  [sandbox_workspace_write]
+  network_access = true
+  writable_roots = ["/Users/<you>/Library/Application Support/orca", "/Users/<you>/.opengrep"]
+  ```
+  In Codex, ask for the scan (`$orca-skills:orca-code-scanner scan my changes`); the automatic closing-step scan currently runs only in Claude Code
 - Data: files are scanned on your machine and no source code is uploaded. Findings go to your Orca tenant only for the policy decision and are not saved as scan logs (`--skip-scan-log`)
 
 **Usage:**
