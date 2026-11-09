@@ -32,7 +32,7 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Orca Security Skills",
-    "shortDescription": "Cloud security workflows powered by Orca MCP data.",
+    "shortDescription": "Cloud security workflows with Orca MCP, plus Orca CLI code scanning.",
     "longDescription": "Install Orca Security skills for alert triage, impact analysis, compliance gaps, exposure mapping, incident investigation, cloud cost optimization, and daily security briefings.",
     "developerName": "Orca Security",
     "category": "Security",

@@ -38,7 +38,7 @@ people want the first one.
 
 | Plugin | What it is | Prerequisites |
 |---|---|---|
-| [`orca-skills`](#skills-overview) | 21 skills for cloud security analysis and guided remediation through the Orca MCP server, plus `orca-code-scanner`, which scans the code you just changed with the Orca CLI | The Orca MCP server. `orca-code-scanner` needs the [Orca CLI](https://github.com/orcasecurity/orca-cli) instead |
+| [`orca-skills`](#skills-overview) | 20 skills for cloud security analysis and guided remediation through the Orca MCP server, plus `orca-code-scanner`, which scans the code you just changed with the Orca CLI | The Orca MCP server. `orca-code-scanner` needs the [Orca CLI](https://github.com/orcasecurity/orca-cli) instead |
 | [`security-engineer`](plugins/security-engineer/) | An autonomous agent that **remediates** Orca findings in your source code and opens a pull request per fix | Python 3.10+, authenticated [`gh`](https://cli.github.com/), `ORCA_API_TOKEN` in the environment, network access to OSV.dev and deps.dev |
 
 They answer different questions and are kept apart on purpose: `orca-skills`
@@ -1511,15 +1511,23 @@ Shift-left scanning as the closing step of a coding task. When the assistant fin
 - Triage before fix: pins vulnerable dependencies, moves hard-coded secrets to environment variables or a secrets manager, tightens over-permissive IaC, and replaces a malicious or typosquat package with the legitimate one instead of "patching" it
 - Likely false positives are listed with reasoning and left to the developer; findings are never suppressed, downgraded, or ignored to make a scan pass
 - One confirmation rescan at most, then a short report: which scans ran, which were skipped and why, what was fixed, what is open
-- Handles setup with the developer's approval: installs the CLI if missing, uses `ORCA_SECURITY_API_TOKEN` when set, otherwise hands off `orca-cli auth login`; declining setup skips the scan rather than blocking
+- Quiet unless set up: when it runs on its own and the CLI is missing or not logged in, it says so in one line and stops. It installs the CLI or starts `orca-cli auth login` only when you ask for a scan, and only with your approval
 - Scope is what the task produces (source, manifests, IaC, images). Live cloud posture is the job of the other skills in this collection
 
-**Prerequisites:** the Orca CLI, authenticated against your Orca tenant, and a project policy to scan under (`ORCA_SECURITY_PROJECT_KEY`, or `default`). No MCP server needed.
+**Before you start:**
+- Requires Orca Shift Left. Install the Orca CLI: [installation guide](https://docs.orcasecurity.io/docs/orca-cli-installation)
+- Log in with `orca-cli auth login`, or set `ORCA_SECURITY_API_TOKEN` (better for CI and sandboxed agents such as Codex)
+- Optional: set `ORCA_SECURITY_PROJECT_KEY` to the project whose policy applies; otherwise `default` is used
+- No MCP server needed
+- Data: files are scanned on your machine and no source code is uploaded. Findings go to your Orca tenant only for the policy decision and are not saved as scan logs (`--skip-scan-log`)
 
 **Usage:**
 ```bash
 # Runs on its own as the closing step of a coding task; or ask for it
 /orca-code-scanner
+
+# Codex
+$orca-skills:orca-code-scanner scan my changes
 
 # Or use natural language
 scan my changes before I push
@@ -1543,7 +1551,7 @@ FIXED
          from the environment; rotate the old value, it is in git history
 
 OPEN (your call)
-  [MEDIUM] requests-oauthlib 1.3.1 — license LGPL-3.0 flagged by policy;
+  [MEDIUM] psycopg2 2.9.9 — license LGPL-3.0 flagged by policy;
            likely fine for internal use, not changed
 
 Rescan: clean. Advisory only — nothing here blocks your commit.
