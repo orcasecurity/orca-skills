@@ -38,7 +38,7 @@ people want the first one.
 
 | Plugin | What it is | Prerequisites |
 |---|---|---|
-| [`orca-skills`](#skills-overview) | 20 skills for cloud security analysis and guided remediation through the Orca MCP server | The Orca MCP server. Nothing else |
+| [`orca-skills`](#skills-overview) | 20 skills for cloud security analysis and guided remediation through the Orca MCP server, plus `orca-code-scanner`, which scans the code you just changed with the Orca CLI | The Orca MCP server. `orca-code-scanner` needs the [Orca CLI](https://github.com/orcasecurity/orca-cli) instead |
 | [`security-engineer`](plugins/security-engineer/) | An autonomous agent that **remediates** Orca findings in your source code and opens a pull request per fix | Python 3.10+, authenticated [`gh`](https://cli.github.com/), `ORCA_API_TOKEN` in the environment, network access to OSV.dev and deps.dev |
 
 They answer different questions and are kept apart on purpose: `orca-skills`
@@ -71,6 +71,7 @@ second plugin or any of its prerequisites.
 | [`orca-account-health`](skills/orca-account-health/) | "Is every account connected, synced, and fully scanned?" |
 | [`orca-k8s-connector-troubleshoot`](#orca-k8s-connector-troubleshoot) | "Why isn't my Kubernetes Connector installing or connecting?" |
 | [`orca-admin-access-grouping`](#orca-admin-access-grouping) | "How few policies do our admins actually need, and who goes in each?" |
+| [`orca-code-scanner`](#orca-code-scanner) | "Is the code I just wrote safe to ship?" |
 
 ### Recommended Workflows
 
@@ -89,6 +90,8 @@ second plugin or any of its prerequisites.
 > **Connector setup:** Connector troubleshoot → (escalate to support if a known platform limitation)
 >
 > **Code remediation:** CVE blast radius (which cloud assets are hit) → `security-engineer` (fix the repos that ship them, one PR per fix)
+>
+> **Shift left (while coding):** Code scanner (scan, triage, and fix what you just changed, before it is pushed)
 
 ## Installation
 
@@ -140,6 +143,7 @@ cp -r skills/* ~/.agents/skills/
 ## MCP Configuration
 
 **Required:** These skills need the Orca Security MCP server to access your environment data.
+The one exception is `orca-code-scanner`, which runs the [Orca CLI](https://github.com/orcasecurity/orca-cli) locally and needs no MCP server (see its [details](#orca-code-scanner)).
 
 ### Claude Code / Claude Desktop
 
@@ -1492,6 +1496,75 @@ ADMIN GROUPING SUMMARY  (window: last 90 days; artifact: daily snapshot)
 ```
 
 [Full Documentation →](skills/orca-admin-access-grouping/)
+
+</details>
+
+<details>
+<summary><strong><a id="orca-code-scanner"></a>orca-code-scanner</strong></summary>
+
+**"Is the code I just wrote safe to ship?"**
+
+Shift-left scanning as the closing step of a coding task. When the assistant finishes a change, it runs the [Orca CLI](https://github.com/orcasecurity/orca-cli) against only the files that task touched (from `git status` / `git diff`), picks the scan types by what each changed file *is*, reads every finding, triages, and fixes the real ones before the change is committed. Advisory by design: it never blocks a commit or push, and accepting a risk stays the developer's call.
+
+**Features:**
+- Scan types chosen per changed file: secrets (any file), SCA on dependency manifests and lockfiles (vulnerabilities, licenses, malicious and typosquat packages), IaC (Terraform, CloudFormation, Kubernetes, Helm, Dockerfiles), container images you built, and SAST on first-party source
+- Triage before fix: pins vulnerable dependencies, moves hard-coded secrets to environment variables or a secrets manager, tightens over-permissive IaC, and replaces a malicious or typosquat package with the legitimate one instead of "patching" it
+- Likely false positives are listed with reasoning and left to the developer; findings are never suppressed, downgraded, or ignored to make a scan pass
+- One confirmation rescan at most, then a short report: which scans ran, which were skipped and why, what was fixed, what is open
+- Quiet unless set up: when it runs on its own and the CLI is missing or not logged in, it says so in one line and stops. It installs the CLI or starts `orca-cli auth login` only when you ask for a scan, and only with your approval
+- Scope is what the task produces (source, manifests, IaC, images). Live cloud posture is the job of the other skills in this collection
+
+**Before you start:**
+- Requires Orca Shift Left. Install the Orca CLI: [installation guide](https://docs.orcasecurity.io/docs/orca-cli-installation)
+- Log in with `orca-cli auth login`, or set `ORCA_SECURITY_API_TOKEN` (better for CI and sandboxed agents such as Codex)
+- Optional: set `ORCA_SECURITY_PROJECT_KEY` to the project whose policy applies; otherwise `default` is used
+- No MCP server needed
+- Codex: one-time setup before the first scan. Add this to `~/.codex/config.toml` (full paths), then restart Codex. Without it, scans can't reach Orca or save your login, and a blocked token refresh can log you out of `orca-cli`:
+  ```toml
+  [sandbox_workspace_write]
+  network_access = true
+  writable_roots = ["/Users/<you>/Library/Application Support/orca", "/Users/<you>/.opengrep"]
+  ```
+  In Codex, ask for the scan (`$orca-skills:orca-code-scanner scan my changes`); the automatic closing-step scan currently runs only in Claude Code
+- Data: files are scanned on your machine and no source code is uploaded. Findings go to your Orca tenant only for the policy decision and are not saved as scan logs (`--skip-scan-log`)
+
+**Usage:**
+```bash
+# Runs on its own as the closing step of a coding task; or ask for it
+/orca-code-scanner
+
+# Codex
+$orca-skills:orca-code-scanner scan my changes
+
+# Or use natural language
+scan my changes before I push
+is this secure?
+check the dependencies I just added
+scan the image I just built
+```
+
+**Example output:**
+```
+Orca scan — 3 changed files
+
+  secrets  app/settings.py, app/db.py, requirements.txt   1 finding
+  sca      ./ (requirements.txt)                          2 findings
+  sast     app/settings.py, app/db.py                     clean
+  iac      skipped — no IaC files changed
+
+FIXED
+  [HIGH] requests 2.25.1 → 2.32.4 (CVE-2024-35195)
+  [HIGH] hard-coded DATABASE_PASSWORD in app/settings.py → reads DATABASE_PASSWORD
+         from the environment; rotate the old value, it is in git history
+
+OPEN (your call)
+  [MEDIUM] psycopg2 2.9.9 — license LGPL-3.0 flagged by policy;
+           likely fine for internal use, not changed
+
+Rescan: clean. Advisory only — nothing here blocks your commit.
+```
+
+[Full Documentation →](skills/orca-code-scanner/)
 
 </details>
 
