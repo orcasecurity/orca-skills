@@ -33,13 +33,14 @@ Orca Skills supports both **Claude Code and Codex**. Both clients use the same
 
 ## Plugins
 
-This marketplace carries two plugins. They are installed separately, and most
+This marketplace carries three plugins. They are installed separately, and most
 people want the first one.
 
 | Plugin | What it is | Prerequisites |
 |---|---|---|
 | [`orca-skills`](#skills-overview) | 20 skills for cloud security analysis and guided remediation through the Orca MCP server, plus `orca-code-scanner`, which scans the code you just changed with the Orca CLI | The Orca MCP server. `orca-code-scanner` needs the [Orca CLI](https://github.com/orcasecurity/orca-cli) instead |
 | [`security-engineer`](plugins/security-engineer/) | An autonomous agent that **remediates** Orca findings in your source code and opens a pull request per fix | Python 3.10+, authenticated [`gh`](https://cli.github.com/), `ORCA_API_TOKEN` in the environment, network access to OSV.dev and deps.dev |
+| [`orca-security`](plugins/orca-security/) | A side panel in Claude Code (`/orca`) listing the open Orca alerts on the session's repository and on the cloud assets deployed from it, each with a button that asks Claude to fix or investigate it | The Orca MCP server, connected in Claude Code |
 
 They answer different questions and are kept apart on purpose: `orca-skills`
 reads and explains your **cloud posture**; `security-engineer` writes code
@@ -106,6 +107,7 @@ Then install whichever plugins you want:
 ```bash
 claude plugin install orca-skills@orcasecurity          # the MCP skills
 claude plugin install security-engineer@orcasecurity    # autonomous remediation
+claude plugin install orca-security@orcasecurity        # the /orca side panel
 ```
 
 **Next step:** Configure the Orca Security MCP server (see [MCP Configuration](#mcp-configuration) below).

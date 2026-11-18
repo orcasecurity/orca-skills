@@ -1,0 +1,21 @@
+{
+  "name": "orca-security",
+  "displayName": "Orca Security",
+  "version": "0.6.3",
+  "description": "Orca Security in Claude Code: a side panel of the open Orca alerts on a repository's code, the cloud alerts and assets deployed from it, read through the Orca MCP server.",
+  "author": {
+    "name": "Orca Security",
+    "email": "support@orca.security"
+  },
+  "homepage": "https://github.com/orcasecurity/orca-skills/tree/main/plugins/orca-security",
+  "repository": "https://github.com/orcasecurity/orca-skills",
+  "license": "MIT",
+  "keywords": [
+    "security",
+    "orca",
+    "code-security",
+    "cloud-security",
+    "side-panel"
+  ],
+  "types": "./types/index.d.ts"
+}

@@ -25,6 +25,16 @@
         "name": "Orca Security",
         "email": "support@orca.security"
       }
+    },
+    {
+      "name": "orca-security",
+      "description": "A side panel of the Orca alerts on a repository's code, and the cloud alerts and assets deployed from it",
+      "version": "0.6.3",
+      "source": "./plugins/orca-security",
+      "author": {
+        "name": "Orca Security",
+        "email": "support@orca.security"
+      }
     }
   ]
 }
