@@ -1,0 +1,45 @@
+.claude-plugin/marketplace.json
+  s_c3eb7d2205df07::t_bbe6c80d260dcb 28-37
+README.md
+  s_c3eb7d2205df07::t_99fa8b5fc9dcd6 36,43,110
+plugins/orca-security/.claude-plugin/plugin.json
+  s_c3eb7d2205df07::t_ad004e2be87641 1-21
+plugins/orca-security/.gitignore
+  s_c3eb7d2205df07::t_c9f67877fde5f5 1-2
+plugins/orca-security/README.md
+  s_c3eb7d2205df07::t_7f69c2b3b2bd7e 1-54
+plugins/orca-security/hooks/hooks.json
+  s_c3eb7d2205df07::t_080d6010602696 1
+plugins/orca-security/hooks/register.tsx
+  s_c3eb7d2205df07::t_ccf578cf901815 1-10
+plugins/orca-security/hooks/repo/marks.ts
+  s_c3eb7d2205df07::t_d6f4e8b82a7cfa 1-112
+plugins/orca-security/hooks/repo/panel.tsx
+  s_c3eb7d2205df07::t_4c39f1fbbe120f 1-599
+plugins/orca-security/hooks/repo/prompts.ts
+  s_c3eb7d2205df07::t_c9e3e1b8187631 1-147
+plugins/orca-security/hooks/repo/queries.ts
+  s_c3eb7d2205df07::t_45bca2190225ee 1-533
+plugins/orca-security/tests/repo.test.tsx
+  s_c3eb7d2205df07::t_ca6fe9a01e8b3d 1-799
+plugins/orca-security/tsconfig.json
+  s_c3eb7d2205df07::t_0ae9568189df49 1-3
+plugins/orca-security/types/index.d.ts
+  s_c3eb7d2205df07::t_168503eeec0eeb 1-90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "1a76b546b6f6c9a169913a63dcadb43d9aa35454",
+  "prompts": {},
+  "sessions": {
+    "s_c3eb7d2205df07": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "527cb71f-0da6-4646-8b7b-9108fe018690",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Junninho Thomas <junninho.thomas@orca.security>"
+    }
+  }
+}
